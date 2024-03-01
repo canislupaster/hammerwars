@@ -369,10 +369,10 @@
 <body>
     @if (hdr)
         <a class="nostyle" href="/" >
-            <img src="/banner-md.svg"
-             srcset="/banner-lg.svg 1800w, /banner-md.svg 1230w"
-            sizes="(max-width: 600px) 600px, 1800px"
-             alt="HammerWars 3">
+            <picture>
+              <source media="(min-width: 600px)" srcset="/banner-lg.svg">
+              <img src="/banner-md.svg" alt="HammerWars 3" >
+            </picture>
         </a>
     @endif
 

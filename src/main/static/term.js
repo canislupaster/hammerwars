@@ -229,14 +229,20 @@ window.addEventListener("load", () => {
     root.addEventListener("click", () => invisInput.focus());
     root.addEventListener("focusin", () => invisInput.focus());
 
-    invisInput.addEventListener("keydown", (e) => {
+    invisInput.addEventListener("input", (e) => {
         if (current < msgs.length) return;
 
         let last = inputInner[inputInner.length-1].span;
+        last.textContent += e.data;
 
-        if (e.key.length == 1) {
-            last.textContent += e.key;
-        } else if (e.key == "Backspace") {
+        moveCursor();
+    })
+
+    invisInput.addEventListener("keydown", (e) => {
+        if (current < msgs.length) return;
+        const last = inputInner[inputInner.length-1].span;
+
+        if (e.key == "Backspace") {
             if (last.textContent=="") {
                 if (inputInner.length>0 && inputInner[inputInner.length-1].indents.length>0)
                     indentInput(false);
@@ -250,7 +256,7 @@ window.addEventListener("load", () => {
         } else if (e.key=="Tab") {
             indentInput(!e.shiftKey);
             e.preventDefault();
-        }
+        } else return;
 
         moveCursor();
     });
