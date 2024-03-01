@@ -1,0 +1,102 @@
+@import java.time.Instant
+@import win.hammerwars.convertTime
+
+@param loggedIn: Boolean
+@param open: Boolean
+@param opens: Instant
+
+@template.main(
+    title="HammerWars 3",
+    body=@`<div class="center bg" style="flex-direction: row; overflow: hidden; padding: 15px" >
+        @if (loggedIn)
+            <h1><a class="btn" href="/register" >Edit registration</a></h1>
+        @elseif (!open)
+            <h1>
+                Registrations will open ${convertTime(opens)}
+            </h1>
+        @else
+            <img src="/arrows.svg" class="arrow" />
+            <form action="/login" method="post" class="arrow-center" >
+                <h1><input type="submit" class="btn" style="flex-shrink: 0" value="Sign up now" /></h1>
+            </form>
+            <img src="/arrows.svg" style="transform: scaleX(-1)" class="arrow" />
+        @endif
+    </div>
+
+    <div id="msgs" tabindex="0" >
+
+    </div>
+    <div class="section bg" >
+        <div class="container" >
+            <h1>What does it look like?</h1>
+            <p>
+                You'll be solving problems like <a href="https://codeforces.com/problemset/problem/1931/F" >this</a> for a few hours. Fun, right? Some problems will be <s>substantially</s> harder and some will be easier, so everyone should be able to solve something and nobody should be able to solve everything.
+            </p>
+
+            <p>
+                Ideally, you should be able to write C++ &mdash; competitive programming is dominated by C++ for its speed and standard library &mdash; but Python, Java, and a litany of other languages will work too. If you have time, try solving a couple Codeforces problems before attending HammerWars for a huge boost (if you're new, problems rated &lt;1000 as shown in the <a href="https://codeforces.com/problemset" >problemset</a> is a good place to start). The main contest will be hosted on Codeforces.
+            </p>
+        </div>
+    </div>
+
+    <div class="section center" >
+        <h1 style="font-size: 4rem" >THE GOODS</h1>
+        <p>If you're one of the top teams, you could get:</p>
+    </div>
+    <div class="gallery container pad" >
+        <div>
+            <h2>ELEGOO Neptune 4 3D Printer</h2>
+            <img src="/prizes/printer.webp" />
+        </div>
+        <div>
+            <h2>Flipper Zero</h2>
+            <img src="/prizes/flipper.webp" />
+        </div>
+        <div>
+            <h2>Terasic DE10-Lite FPGA</h2>
+            <img src="/prizes/fpga.jpg" />
+        </div>
+        <div>
+            <h2>DIY Arduino-powered Plotter</h2>
+            <img src="/prizes/plotter.webp" alt="Image from Generative Hut's review of the LY Drawbot from a reputable seller on the high quality shopping site AliExpress" />
+        </div>
+        <div>
+            <h2>Raspberry Pi 5</h2>
+            <img src="/prizes/rpi5.png" />
+        </div>
+        <div>
+            <h2>Victory shirt</h2>
+            <img src="/prizes/shirt.png" />
+        </div>
+        <div style="background: #ffd940" >
+            <h2>Rubber Duck</h2>
+            <img src="/prizes/ducks.webp" />
+            <p>Everyone gets one to <a href="https://en.wikipedia.org/wiki/Rubber_duck_debugging" >debug</a>, so nobody has an unfair advantage.</p>
+        </div>
+    </div>
+    <div class="section bg" >
+        <div class="container" >
+            <h1>Last year,</h1>
+            <p>
+                We collaborated with Purdue Hackers and several sponsors to host an exhilarating contest for 180 participants with $2000 in prizes, free shirts, and more.
+            </p>
+            <div class="gallery" >
+                <div><img src="/last/1.jpg" /></div>
+                <div><img src="/last/2.jpg" /></div>
+                <div><img src="/last/3.jpg" /></div>
+            </div>
+            <a href="https://events.purduehackers.com/hammerwars-20" >More photos and retrospective</a>
+
+            <p>And this year, <s>we were abandoned by Purdue Hackers and we only have $800 in prizes</s> we want to improve the contest experience by fostering collaboration and creating better problems.</p>
+        </div>
+    </div>
+    <div class="section center" >
+        <h1>More is coming</h1>
+        <p>Be on the lookout for a schedule and some other things. In the meantime, get in the <a href="https://discord.gg/BvvaQnsax6" >Discord</a>!</p>
+        <img src="/construction.svg" style="max-width: 200px; margin-top: 1rem" />
+    </div>`,
+    head=@`
+        <script src="/swbasic.js" ></script>
+        <script src="/term.js" ></script>
+    `
+)

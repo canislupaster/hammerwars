@@ -1,0 +1,311 @@
+@import win.hammerwars.UserData
+@import win.hammerwars.WebError
+@import win.hammerwars.WebErrorType
+@import win.hammerwars.convertTime
+
+@param data: UserData
+@param defaultGrid: List<List<Boolean>>
+@param submitted: UserData?
+
+@param email: String
+
+@param err: WebError?=null
+@param success: String?=null
+
+!{fun gridJson(drawing: List<List<Boolean>>) = drawing.joinToString(",") {
+    it.joinToString(",", "[", "]") { v -> if (v) "true" else "false" }
+}}
+
+@template.main(
+    title="HammerWars - Register",
+    body=@`
+    <div class="section bg center" >
+        <h1>Registration</h1>
+    </div>
+
+    @if (success!=null)
+        <div class="status success" >
+            <h2>${success}</h2>
+            @if(success == "Submitted")
+                <p>
+                    <p>Be sure to join the <a href="https://discord.gg/BvvaQnsax6" >Discord</a> for updates! You should also receive an email before the contest.</p>
+                </p>
+            @endif
+        </div>
+    @endif
+    @if (err!=null)
+        <div class="status error" >
+            <h2>${err.ty.message()}</h2>
+            <p>${if (err.ty==WebErrorType.RegistrationClosed)
+                    "Sorry, it looks like we filled up (or we screwed up)."
+                else err.msg ?: "Maybe try again?"}</p>
+        </div>
+    @endif
+
+    <form id="register" method="post" >
+        <div class="section" >
+            <div class="container" >
+                <p>
+                    Registering with <b>${email}</b>. Not you? <a href="/logout" >Log out</a>.
+
+                    @if (submitted!=null)
+                        Submitted ${convertTime(submitted.time)}.
+                        <input class="link" type="submit" value="Unsubmit?" formaction="/unsubmit" />
+                    @else
+                        <b>Not submitted yet.</b>
+                    @endif
+
+                    Modified ${convertTime(data.time)}.
+                </p>
+
+                <div class="group" >
+                    <label for="name" >Full name</label>
+                    <input value="${data.name}" name="name" />
+                </div>
+                <div class="group" >
+                    <label for="cfHandle" >Codeforces username</label>
+                    <input value="${data.cfHandle}" name="cfHandle" />
+                    <p>If you don't have an account on <a href="https://codeforces.com/" >Codeforces</a>, we'll help you during the contest and you can leave this blank.</p>
+                </div>
+                <div class="group" >
+                    <div class="pretty p-switch p-fill">
+                        <input type="checkbox" name="lookingForTeam" checked="${data.lookingForTeam}" />
+                        <div class="state">
+                            <label for="lookingForTeam" >Would you like to be automatically put in a team before the contest?</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="group" >
+                    <label for="cfTeam" >Codeforces team name</label>
+                    <input value="${data.cfTeam}" name="cfTeam" />
+                    <p>You don't have to worry about this until the contest (but if you want to setup your team early, be my guest)</p>
+                </div>
+                <div class="group" >
+                    <label for="pizza" >Pizza?</label>
+                    <select name="pizza" value="${data.pizza.toString()}" >
+                        <option value="Cheese" >Cheese</option>
+                        <option value="Meat" >Meat</option>
+                        <option value="Pepperoni" >Pepperoni</option>
+                        <option value="Veggie" >Veggie</option>
+                        <option value="None" >I'm not eating / I'm leaving before dinner</option>
+                    </select>
+                </div>
+                <div class="group" >
+                    <label for="shirt" >Would you like a shirt? We're strapped for cash, so you probably won't get it... but it's worth a shot, amirite?</label>
+                    <select name="shirt" value="${data.shirt.toString()}" >
+                        <option value="S" >S</option>
+                        <option value="M" >M</option>
+                        <option value="L" >L</option>
+                        <option value="XL" >XL</option>
+                        <option value="XXL" >XXL</option>
+                        <option value="None" >I don't want a cheap shirt!</option>
+                    </select>
+                    <p><i>Sizes are unisex.</i></p>
+                </div>
+
+                <div class="group" >
+                    <label for="ans" >Are orange peels edible? Please provide a detailed essay rationalizing your choice.</label>
+                    <input name="ans" maxlength="10" value="${data.ans}" />
+                    <p id="ans-count" ></p>
+                </div>
+
+                <div class="group" >
+                    <label for="randomNumber" >Pick a random integer from 1-100.</label>
+                    <input name="randomNumber" value="${data.randomNumber}" >
+                    <p>Remember to choose a valid integer in this range! Dissidents will be severely punished.</p>
+                </div>
+
+                <div class="drawing-container" >
+                    <label for="drawing" >
+                        I'll give you the wheels; just fill in the rest of the bike. Not hard, right?
+                    </label>
+
+                    <canvas width="200" height="200" id="drawing" ></canvas>
+                    <button type="button" id="clear" class="btn" ><h2>Clear</h2></button>
+                </div>
+
+                <div class="group" >
+                    <label for="enjoyment" >How much do you think you'll enjoy this contest?</label>
+                    <div style="display: flex; flex-direction: column; align-items: stretch; flex-grow: 1; margin: 1rem 0" >
+                        <input name="enjoyment" type="range" min="0" max="100" value="${data.enjoyment}" >
+                        <div style="display: flex; flex-direction: row; justify-content: space-between" >
+                            <span>Maybe I'll come, like, an hour late?</span>
+                            <span><b><i>LET ME IN!</i></b></span>
+                        </div>
+                    </div>
+                    <p>If you think someone else might enjoy the contest more, you can express that probability here. If we run out of capacity, it might be used for selection.</p>
+                </div>
+
+                <div id="submitErr" ></div>
+            </div>
+        </div>
+
+        <div class="section center bg" style="flex-direction:row; flex-wrap: wrap" >
+            <button class="btn" formaction="/save" ><h2>Save</h2></button>
+            @if (err?.ty!=WebErrorType.RegistrationClosed)
+                <button class="btn main" id="submitButton" formaction="/register" ><h2>Register</h2></button>
+            @endif
+        </div>
+    </form>
+    `,
+    head=@`
+        <script>
+            let data = [${gridJson(data.drawing)}];
+            const defaultData = [${gridJson(defaultGrid)}];
+
+            const scale = 10;
+
+        @raw
+            const requiredForSubmission = ["name", "ans", "randomNumber"];
+
+            const n=data.length, m=data[0].length;
+
+            window.addEventListener("load", () => {
+                for (const el of document.getElementsByTagName("input")) {
+                    if (el.maxLength!=undefined) {
+                        const p = document.getElementById(el.name+"-count");
+                        if (p==null) continue;
+
+                        const up = () => {
+                            p.innerText = `${el.value.length}/${el.maxLength} characters`;
+                            if (el.value.length >= el.maxLength) p.classList.add("full");
+                            else p.classList.remove("full");
+                        };
+
+                        el.addEventListener("input", (ev) => up());
+                        up();
+                    }
+                }
+
+                for (let el of document.getElementsByTagName("select")) {
+                    const v = el.getAttribute("value");
+                    if (v==null) continue;
+
+                    for (let opt of el.options) {
+                        if (opt.value==v) opt.selected = true;
+                    }
+                }
+
+                const canvas = document.getElementById("drawing");
+                canvas.width = m*scale, canvas.height=n*scale;
+
+                const ctx = canvas.getContext("2d");
+                ctx.imageSmoothingEnabled=false;
+
+                document.getElementById("clear").addEventListener("click", () => {
+                    data=[...defaultData.map((x) => [...x])];
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    for (let i=0; i<n; i++) for (let j=0; j<m; j++)
+                        if (data[i][j]) fill(i,j);
+                });
+
+                let lastLoc = null;
+                canvas.addEventListener("mouseout", () => lastLoc=null);
+                canvas.addEventListener("mouseup", () => lastLoc=null);
+
+                function bres(x0,y0,x1,y1) {
+                    console.log(x0,y0,x1,y1);
+
+                    const swap = Math.abs(y1-y0)>Math.abs(x1-x0);
+                    if (swap) [x0,y0,x1,y1] = [y0,x0,y1,x1];
+                    if (y1<y0) [x0,y0,x1,y1] = [x1,y1,x0,y0]
+
+                    let pts = []; let y=y0;
+                    const dx=x1>x0 ? 1 : -1;
+
+                    for (let x=x0; (x1>x0) ? (x<=x1) : (x>=x1); x+=dx) {
+                        if ((y-y0)*Math.abs(x1-x0) < Math.abs(x-x0)*(y1-y0)) y++;
+                        pts.push(swap ? [y,x] : [x,y]);
+                    }
+
+                    return pts;
+                }
+
+                const fill = (i,j) => {
+                    data[i][j] = true;
+                    ctx.fillRect(j*canvas.width/m, i*canvas.height/n, canvas.width/m, canvas.height/n);
+                };
+
+                let bbox=null;
+                const cb = (ev) => {
+                    const i = Math.floor(n*(ev.clientY-bbox.top)/bbox.height);
+                    if (i<0 || i>=n) return;
+                    const j = Math.floor(m*(ev.clientX-bbox.left)/bbox.width);
+                    if (j<0 || j>=m) return;
+
+                    let pts = lastLoc==null ? [[i,j]] : bres(lastLoc[0],lastLoc[1],i,j);
+
+                    ctx.fillStyle = "black";
+                    for (const [a,b] of pts) fill(a,b);
+                    lastLoc = [i,j];
+                };
+
+                for (let i=0; i<n; i++) for (let j=0; j<m; j++)
+                    if (data[i][j]) fill(i,j);
+
+                const mouseCb = (ev) => {
+                    if (ev.buttons==1) cb(ev);
+                };
+
+                const touchCb = (ev) => {
+                    if (ev.changedTouches.length>0) cb(ev.changedTouches[0]);
+                    ev.preventDefault();
+                };
+
+                canvas.addEventListener("mousemove", mouseCb);
+                canvas.addEventListener("mousedown", (ev) => {
+                    bbox = canvas.getBoundingClientRect();
+                    lastLoc = null;
+                    mouseCb(ev);
+                });
+
+                canvas.addEventListener("touchmove", touchCb);
+                canvas.addEventListener("touchstart", (ev) => {
+                    bbox = canvas.getBoundingClientRect();
+                    lastLoc = null;
+                    touchCb(ev);
+                });
+
+                const form = document.getElementById("register");
+                form.addEventListener("formdata", (ev) => {
+                    ev.formData.set("drawing",
+                        data.map((x) => x.map((y) => y ? "1" : "0")
+                            .join("")).join("\n"));
+                });
+
+                form.addEventListener("submit", (ev) => {
+                    if (ev.submitter.id!="submitButton") return true;
+
+                    const serr = document.getElementById("submitErr");
+                    let good=true;
+
+                    for (const req of requiredForSubmission) {
+                        const el = document.getElementsByName(req)[0];
+                        const label = document.querySelector(`label[for=${req}]`);
+
+                        if (el.value.trim()=="") {
+                            label.classList.add("missing-label");
+                            el.classList.add("missing");
+                            good=false;
+                        } else {
+                            label.classList.remove("missing-label");
+                            el.classList.remove("missing");
+                        }
+                    }
+
+                    if (good) serr.innerHTML="";
+                    else {
+                        serr.innerHTML = `<div class="status error" >
+                            <h2>Missing required field</h2>
+                            <p>Please fill out the highlighted fields before submitting</p>
+                        </div>`;
+
+                        ev.preventDefault();
+                    }
+
+                    return good;
+                });
+            });
+        </script>
+    @endraw`
+)

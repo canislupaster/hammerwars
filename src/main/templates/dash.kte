@@ -1,0 +1,85 @@
+@import kotlinx.serialization.json.Json
+@import kotlinx.serialization.encodeToString
+@import win.hammerwars.Dashboard
+
+@param dash: Dashboard
+
+@template.main(
+    title="HammerWars - Dashboard",
+    body=@`
+    <div class="section" >
+        <div class="container" >
+            <form action="${if(dash.closed) "/dashboard/open" else "/dashboard/close"}"
+                  method="POST" style="display: inline" >
+                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"}.
+
+                <button class="link" >${if(dash.closed) "Reopen" else "Close"}?</button>
+
+                There are ${dash.numSubmissions}/${dash.maxSubmissions} completed submissions (${dash.users.size} saved).</p>
+            </form>
+
+            <div class="center" >
+                <div id="spreadsheet" ></div>
+            </div>
+
+            <a id="download" href="#" >Download CSV</a>
+        </div>
+    </div>`,
+    head=@`
+    <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+    <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
+
+    <script src="https://jsuites.net/v4/jsuites.js"></script>
+    <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+
+    <script>
+            const data = $unsafe{ Json.encodeToString(dash.users) };
+
+            const dataFlat = data.map((row) => ({
+                ...row,
+                ...(row.submitted==null ? {} : row.submitted)
+            }));
+
+            const cols = [
+                {type: "text", title: "id", name: "id", width: 60},
+                {type: "numeric", title: "#", name: "num", width: 10},
+                {type: "text", title: "email", name: "email", width: 60},
+                {type: "text", title: "modified", name: "lastSaved", width: 60},
+                {type: "text", title: "submitted", name: "time", width: 60},
+                {type: "text", title: "pizza", name: "pizza", width: 60},
+                {type: "text", title: "random", name: "randomNumber", width: 20},
+                {type: "numeric", title: "enjoyment", name: "enjoyment", width: 10},
+                {type: "text", title: "codeforces", name: "cfHandle", width: 20},
+                {type: "text", title: "shirt", name: "shirt", width: 20},
+                {type: "text", title: "team", name: "cfTeam", width: 20},
+                {type: "text", title: "name", name: "name", width: 40},
+                {type: "text", title: "answer", name: "ans", width: 20},
+                {type: "checkbox", title: "needs team", name: "lookingForTeam", width: 10},
+            ].map((x) => ({...x, width: x.width*2.5}));
+
+            const colFilter = new Set(cols.map((x) => x.name));
+
+            for (const prop of ["lastSaved", "time"]) {
+                for (const row of dataFlat) {
+                    if (row[prop] != null) row[prop] = new Date(row[prop]).toLocaleString();
+                    for (const k in row) if (!colFilter.has(k)) delete row[k];
+                }
+            }
+
+            window.addEventListener("load", () => {
+                const table = jspreadsheet(document.getElementById('spreadsheet'), {
+                    data: dataFlat,
+                    search: true,
+                    csvFileName: "hammerwars",
+                    editable: false,
+                    includeHeadersOnDownload: true,
+                    columns: cols
+                });
+
+                document.getElementById("download").addEventListener("click", () => {
+                    table.download(true);
+                });
+            });
+        </script>
+    `
+)

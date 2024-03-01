@@ -1,0 +1,46 @@
+@import win.hammerwars.WebError
+@import win.hammerwars.WebErrorType
+
+@param err: WebError
+
+!{val loginErr = err.ty==WebErrorType.BadEmail || err.ty==WebErrorType.Unauthorized}
+
+@template.main(
+    title="HammerWars - Error",
+    body=@`
+    <div class="section bg center" >
+        <h1>${err.ty.message()}</h1>
+    </div>
+
+    <div class="section" >
+        <div class="container" >
+            <p>
+                ${err.msg ?: "Sorry about that."}
+            </p>
+
+            @if(loginErr)
+                <p>
+                    Please try logging in again with your Purdue email.
+                </p>
+             @endif
+        </div>
+    </div>
+
+    <div class="center bg" style="flex-direction: row; overflow: hidden" >
+        <img src="/arrows.svg" class="arrow" />
+
+        @if (loginErr)
+            <form action="/login" method="post" class="arrow-center" >
+                <button class="btn" >
+                    <h1>Try again</h1>
+                </button>
+            </form>
+        @else
+            <h2 class="arrow-center" ><a class="btn smol" href="/" >
+                It's getting late... how about we head back home?
+            </a></h2>
+        @endif
+
+        <img src="/arrows.svg" style="transform: scaleX(-1)" class="arrow" />
+    </div>`
+)
