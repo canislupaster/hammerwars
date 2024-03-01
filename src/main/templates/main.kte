@@ -21,7 +21,7 @@
     <meta property="og:title" content="${title}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://hammerwars.win/" />
-    <meta property="og:image" content="https://hammerwars.win/banner-md.jpg" />
+    <meta property="og:image" content="https://hammerwars.win/circlelogo.png" />
     <meta property="og:description" content="HammerWars is a competitive programming contest at Purdue which will be hosted by the Competitive Programming Union for its third year." />
     <meta property="og:site_name" content="HammerWars" />
     <meta property="og:locale" content="en_US" />

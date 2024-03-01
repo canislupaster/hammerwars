@@ -9,6 +9,8 @@ mkdir -p /var/log/hammerwars
 chown -R $USER:$USER /var/log/hammerwars
 chmod -R u+rw /var/log/hammerwars
 EOF
+#build
+./gradlew build
 # kill any existing screen
 screen -S hammerwars -X quit
 # run screen to log to /var/log/hammerwars
