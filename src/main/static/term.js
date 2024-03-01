@@ -208,7 +208,7 @@ interpreter.clear_function = () => {
     current=-1;
 };
 
-window.addEventListener("load", () => {
+window.addEventListener("DOMContentLoaded", () => {
     root = document.getElementById("msgs");
     defaultMsgs.forEach((x) => addMsg(x));
 

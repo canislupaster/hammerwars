@@ -66,7 +66,7 @@
                 }
             }
 
-            window.addEventListener("load", () => {
+            window.addEventListener("DOMContentLoaded", () => {
                 const table = jspreadsheet(document.getElementById('spreadsheet'), {
                     data: dataFlat,
                     search: true,

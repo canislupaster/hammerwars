@@ -62,7 +62,7 @@
         </div>
         <div>
             <h2>Raspberry Pi 5</h2>
-            <img src="/prizes/rpi5.png" />
+            <img src="/prizes/rpi5.jpg" />
         </div>
         <div>
             <h2>Victory shirt</h2>
@@ -70,7 +70,7 @@
         </div>
         <div style="background: #ffd940" >
             <h2>Rubber Duck</h2>
-            <img src="/prizes/ducks.webp" />
+            <img src="/prizes/ducks.jpg" />
             <p>Everyone gets one to <a href="https://en.wikipedia.org/wiki/Rubber_duck_debugging" >debug</a>, so nobody has an unfair advantage.</p>
         </div>
     </div>
