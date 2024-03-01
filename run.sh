@@ -9,6 +9,5 @@ mkdir -p /var/log/hammerwars
 chown -R $USER:$USER /var/log/hammerwars
 chmod -R u+rw /var/log/hammerwars
 EOF
-export $(cat .env | xargs)
 # run screen to log to /var/log/hammerwars
 screen -S hammerwars -L -Logfile /var/log/hammerwars/hammerwars.log -dm ./gradlew run
