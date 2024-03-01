@@ -54,6 +54,10 @@
             .cpu {
                 font-size: 5.5em;
             }
+
+            h1, h1 >input {
+                font-size: 2.4rem;
+            }
         }
 
         body {
@@ -200,7 +204,7 @@
         @keyframes blinker { to { opacity: 0; } }
 
         h1, h1 >input {
-            font-size: 2.4rem;
+            font-size: 2rem;
             font-weight: 900;
             margin: 10px 0;
         }
