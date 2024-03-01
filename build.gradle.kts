@@ -20,6 +20,7 @@ plugins {
     kotlin("jvm") version "1.9.22"
     id("gg.jte.gradle") version("3.1.9")
     kotlin("plugin.serialization") version "1.9.22"
+    application
 }
 
 group = "win.hammerwars"
@@ -59,7 +60,10 @@ jte {
     generate()
 }
 
-apply(plugin="application")
+application {
+    mainClass="win.hammerwars.MainKt"
+}
+
 apply(plugin="jooby")
 
 tasks.withType<io.jooby.gradle.RunTask> {
