@@ -230,7 +230,7 @@ window.addEventListener("DOMContentLoaded", () => {
     root.addEventListener("focusin", () => invisInput.focus());
 
     invisInput.addEventListener("input", (e) => {
-        if (current < msgs.length) return;
+        if (current < msgs.length || data==null) return;
 
         let last = inputInner[inputInner.length-1].span;
         last.textContent += e.data;
