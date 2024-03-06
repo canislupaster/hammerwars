@@ -119,7 +119,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
             val id = getNextBid()
             val path =
                 if (!isDev) ProcessBuilder("isolate", "-b", id.toString(), "--init")
-                    .start().wait(true).out
+                    .start().wait(true).out.trim()
                 else Files.createTempDirectory("hammerwars_team${id}").toString()
             return Team(lang, code, id, path, !isDev)
         }
