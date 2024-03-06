@@ -9,22 +9,44 @@
     body=@`
     <div class="section" >
         <div class="container" >
-            <form action="${if(dash.closed) "/dashboard/open" else "/dashboard/close"}"
-                  method="POST" style="display: inline" >
-                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"}.
+            <form method="POST" style="display: inline" >
+                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"} and ${if (dash.inProgress) "LOCKED" else "UNLOCKED"}.
 
-                <button class="link" >${if(dash.closed) "Reopen" else "Close"}?</button>
+                @if (dash.closed) <button class="link" formaction="/dashboard/open" >Reopen?</button>
+                @else <button class="link" formaction="/dashboard/close" >Close?</button>
+                @endif
 
-                There are ${dash.numSubmissions}/${dash.maxSubmissions} completed submissions (${dash.users.size} saved).</p>
+                @if (dash.inProgress) <button class="link" formaction="/dashboard/unlock" >Unlock?</button>
+                @else <button class="link" formaction="/dashboard/lock" >Lock?</button>
+                @endif
+
+                There are ${dash.numSubmissions}/${dash.maxSubmissions} completed submissions (${dash.users.size} saved).
+
+                <button class="link" formaction="/dashboard/run" >Run game</button></p>
             </form>
 
-            <div class="center" >
-                <div id="spreadsheet" ></div>
-            </div>
-
-            <a id="download" href="#" >Download CSV</a>
         </div>
-    </div>`,
+    </div>
+    <div class="section bg" >
+        <div class="center" >
+            <div id="spreadsheet" ></div>
+        </div>
+    </div>
+
+    <form method="POST" >
+        <div class="section" >
+            <div class="container" >
+                <a id="download" href="#" >Download CSV</a>
+
+                <p>Team codes:</p>
+                <textarea placeholder="Enter codes here" name="teams" ></textarea>
+
+                <button formaction="/dashboard/accept" class="btn" >Accept</button>
+                <button formaction="/dashboard/reject" class="btn" >Reject</button>
+                <button formaction="/dashboard/removefromgame" class="btn" >Remove from game</button>
+            </div>
+        </div>
+    </form>`,
     head=@`
     <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
     <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
@@ -51,10 +73,12 @@
                 {type: "numeric", title: "enjoyment", name: "enjoyment", width: 10},
                 {type: "text", title: "codeforces", name: "cfHandle", width: 20},
                 {type: "text", title: "shirt", name: "shirt", width: 20},
-                {type: "text", title: "team", name: "cfTeam", width: 20},
+                {type: "text", title: "team id", name: "teamCode", width: 20},
+                // {type: "text", title: "team", name: "cfTeam", width: 20},
                 {type: "text", title: "name", name: "name", width: 40},
                 {type: "text", title: "answer", name: "ans", width: 20},
                 {type: "checkbox", title: "needs team", name: "lookingForTeam", width: 10},
+                {type: "checkbox", title: "accepted", name: "accepted", width: 10},
             ].map((x) => ({...x, width: x.width*2.5}));
 
             const colFilter = new Set(cols.map((x) => x.name));
@@ -70,6 +94,8 @@
                 const table = jspreadsheet(document.getElementById('spreadsheet'), {
                     data: dataFlat,
                     search: true,
+                    tableOverflow: true,
+                    tableWidth: "80vw",
                     csvFileName: "hammerwars",
                     editable: false,
                     includeHeadersOnDownload: true,

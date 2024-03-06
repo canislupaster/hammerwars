@@ -3,7 +3,7 @@
 
 @param err: WebError
 
-!{val loginErr = err.ty==WebErrorType.BadEmail || err.ty==WebErrorType.Unauthorized}
+!{val loginErr = err.ty==WebErrorType.BadEmail || err.ty==WebErrorType.Unauthorized || err.ty==WebErrorType.NoUser}
 
 @template.main(
     title="HammerWars - Error",

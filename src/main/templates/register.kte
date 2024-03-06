@@ -8,6 +8,11 @@
 @param submitted: UserData?
 
 @param email: String
+@param accepted: Boolean?
+
+@param teamCode: String
+@param teamName: String
+@param teamWith: List<String>
 
 @param err: WebError?=null
 @param success: String?=null
@@ -22,6 +27,14 @@
     <div class="section bg center" >
         <h1>Registration</h1>
     </div>
+
+    @if (accepted!=null)
+        <div class="status ${if (accepted) "success" else "error"}" >
+            <h2>${if (accepted) "Accepted" else "Rejected"}</h2>
+            <p>${if (accepted) "Whoa, looks like you (and your team) were accepted. I honestly wasn't expecting that!"
+                else "Oof... we ran outta space or something, and you won't be coming. That's unfortunate. Go home and watch TV or something."}</p>
+        </div>
+    @endif
 
     @if (success!=null)
         <div class="status success" >
@@ -74,12 +87,9 @@
                             <label for="lookingForTeam" >Would you like to be automatically put in a team before the contest?</label>
                         </div>
                     </div>
+                    <p>If you don't have a team, you can check this, find one in the <a href="https://discord.gg/BvvaQnsax6" >Discord</a>, or go alone (beware!)</p>
                 </div>
-                <div class="group" >
-                    <label for="cfTeam" >Codeforces team name</label>
-                    <input value="${data.cfTeam}" name="cfTeam" />
-                    <p>You don't have to worry about this until the contest (but if you want to setup your team early, be my guest)</p>
-                </div>
+
                 <div class="group" >
                     <label for="pizza" >Pizza?</label>
                     <select name="pizza" value="${data.pizza.toString()}" >
@@ -91,7 +101,7 @@
                     </select>
                 </div>
                 <div class="group" >
-                    <label for="shirt" >Would you like a shirt? We're strapped for cash, so you probably won't get it... but it's worth a shot, amirite?</label>
+                    <label for="shirt" >Would you like a shirt? We're strapped for cash, so you probably won't get it, but it's worth a shot.</label>
                     <select name="shirt" value="${data.shirt.toString()}" >
                         <option value="S" >S</option>
                         <option value="M" >M</option>
@@ -147,6 +157,40 @@
             @endif
         </div>
     </form>
+
+    <div class="section center" >
+        <h1>Team</h1>
+    </div>
+
+    <div class="section" >
+        <div class="container" >
+            <form action="/leave" method="POST" >
+                <p>Your join code is <span class="code" >${teamCode}</span>. Send this to others to have them join your team!</p>
+                @if (teamWith.isNotEmpty())
+                <p>You're in a team with <b>${teamWith.joinToString(", ")}</b>.
+                    <button class="link" formaction="/leave" >Leave team?</button></p>
+                @endif
+            </form>
+
+            <form action="/changename" method="POST" >
+                <div class="group" >
+                    <p>Saving or submitting your user data does not modify your team name. Even if you go solo, you should still customize this :)</p>
+                    <label for="name" >Team name</label>
+                    <input name="name" value="${teamName}" />
+                    <button class="btn" >Change team name</button>
+                </div>
+            </form>
+
+            <form action="/join" method="POST" >
+                <div class="group" >
+                    <p>Join someone else's team here:</p>
+                    <label for="teamCode" >Join code</label>
+                    <input name="teamCode" />
+                    <button class="btn" >Join team</button>
+                </div>
+            </form>
+        </div>
+    </div>
     `,
     head=@`
         <script>
@@ -174,15 +218,6 @@
 
                         el.addEventListener("input", (ev) => up());
                         up();
-                    }
-                }
-
-                for (let el of document.getElementsByTagName("select")) {
-                    const v = el.getAttribute("value");
-                    if (v==null) continue;
-
-                    for (let opt of el.options) {
-                        if (opt.value==v) opt.selected = true;
                     }
                 }
 

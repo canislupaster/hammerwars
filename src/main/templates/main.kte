@@ -184,6 +184,8 @@
             font-size: 1em;
             text-decoration: underline;
             cursor: pointer;
+            padding: 0;
+            margin: 0;
         }
 
         a.nostyle {
@@ -283,7 +285,7 @@
             border-style: solid;
             margin: 20px auto;
             padding: 20px;
-            min-width: 70vw;
+            min-width: min(70vw, 700px);
             max-width: 700px;
         }
 
@@ -364,11 +366,89 @@
             width: 700px;
             max-width: 100%;
         }
+
+        .code {
+            font-family: monospace;
+            padding: 5px;
+            background: #efefef;
+            border-radius: 5px;
+            line-height: 2em;
+            white-space: break-spaces;
+            overflow-wrap: anywhere;
+        }
+
+        textarea {
+            font-family: monospace;
+            padding: 5px;
+            background: #f8f8f8;
+            border-radius: 5px;
+            line-height: 2em;
+            font-size: 1.1em;
+            width: 100%;
+            margin: 10px 0;
+            resize: vertical;
+            min-height: 300px;
+        }
+
+        #editor {
+            width: 100%;
+            min-height: 500px;
+            resize: vertical;
+        }
+
+        #leaderboard .team:nth-child(even) {
+            background: #e1e1e1;
+        }
+
+        .teams {
+            border-top: solid;
+            border-bottom: solid;
+            border-spacing: 0;
+            width: 100%;
+        }
+
+        .team {
+            padding: 5px;
+        }
+
+        .team * {
+            padding: 0 15px;
+        }
+
+        .pts, .verdict {
+            text-align: right;
+            width: 0;
+        }
+
+        .pts {
+            font-weight: bold;
+        }
+
+        .verdict.ok {
+            color: #32ce00;
+        }
+
+        .verdict:not(.ok) {
+            color: #e11000;
+        }
     </style>
 
     @if(head!=null)
         ${head}
     @endif
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            for (let el of document.getElementsByTagName("select")) {
+                const v = el.getAttribute("value");
+                if (v==null) continue;
+
+                for (let opt of el.options) {
+                    if (opt.value==v) opt.selected = true;
+                }
+            }
+        });
+    </script>
 </head>
 <body>
     @if (hdr)

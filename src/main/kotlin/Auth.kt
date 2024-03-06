@@ -27,7 +27,7 @@ class Auth(val root: String, val clientId: String, val clientSecret: String, val
 
     suspend fun auth(code: String, ses: DB.SessionDB, nonce: String, state: String) =
         try {
-            if (ses.state!=state) throw WebErrorType.Unauthorized.err("Bad state")
+            if (ses.state!=state) WebErrorType.Unauthorized.err("Bad state")
             val authParams = AuthorizationCodeParameters
                 .builder(code, URI(redirectUrl)).scopes(setOf("User.Read")).build()
 
@@ -36,10 +36,10 @@ class Auth(val root: String, val clientId: String, val clientSecret: String, val
             val nonceHash = claims.getStringClaim("nonce").base64()
 
             if (!MessageDigest.isEqual(nonceHash, db.hash(nonce)))
-                throw WebErrorType.Unauthorized.err("Bad nonce")
+                WebErrorType.Unauthorized.err("Bad nonce")
 
             if (!validateEmail(res.account().username()))
-                throw WebErrorType.BadEmail.err("Invalid email -- please login to Microsoft with your Purdue email address.")
+                WebErrorType.BadEmail.err("Invalid email -- please login to Microsoft with your Purdue email address.")
 
             ses.withEmail(res.account().username(),
                 runCatching {claims.getStringClaim("name")}.getOrNull())

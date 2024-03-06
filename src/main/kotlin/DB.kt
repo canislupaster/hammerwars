@@ -2,7 +2,6 @@ package win.hammerwars
 
 import io.jooby.Environment
 import io.jooby.StatusCode
-import jdk.swing.interop.DragSourceContextWrapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -14,13 +13,13 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.json.json
 import org.jetbrains.exposed.sql.statements.api.ExposedBlob
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.kotlin.build.joinToReadableString
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -34,20 +33,25 @@ import kotlin.io.path.absolutePathString
 
 val SESSION_EXPIRE: Duration = Duration.ofDays(2)
 val OAUTH_EXPIRE: Duration = Duration.ofMinutes(5)
+val MAX_TEAM_SIZE = 3
 
 enum class WebErrorType {
     NotFound,
     Unauthorized,
+    NoUser,
     BadRequest,
     BadEmail,
     FormError,
     Other,
+    JudgingError,
     RegistrationClosed;
 
     fun message(): String = when(this) {
         NotFound -> "Not found"
         Unauthorized -> "Unauthorized"
+        NoUser -> "No user found associated with this session. You probably didn't finish logging in."
         BadRequest -> "Bad request"
+        JudgingError -> "Judge error"
         BadEmail -> "Invalid email"
         FormError -> "Invalid form input"
         Other -> "Unknown error"
@@ -56,8 +60,8 @@ enum class WebErrorType {
 
     fun code(): StatusCode = when(this) {
         NotFound -> StatusCode.NOT_FOUND
-        Unauthorized -> StatusCode.UNAUTHORIZED
-        BadEmail, BadRequest, FormError -> StatusCode.BAD_REQUEST
+        NoUser, Unauthorized -> StatusCode.UNAUTHORIZED
+        JudgingError, BadEmail, BadRequest, FormError -> StatusCode.BAD_REQUEST
         RegistrationClosed -> StatusCode.FORBIDDEN
         Other -> StatusCode.SERVER_ERROR
     }
@@ -65,7 +69,7 @@ enum class WebErrorType {
     fun err(msg: String?=null): Nothing = throw WebError(this, msg)
 }
 
-class WebError(val ty: WebErrorType, val msg: String?=null): Exception(msg ?: ty.message())
+open class WebError(val ty: WebErrorType, val msg: String?=null): Exception(msg ?: ty.message())
 
 fun ByteArray.base64(): String = Base64.getEncoder().encodeToString(this)
 fun String.base64(): ByteArray = Base64.getDecoder().decode(this)
@@ -145,13 +149,19 @@ val DEFAULT_GRID = Grid.decode("""
 val DRAWING_HEIGHT = DEFAULT_GRID.size
 val DRAWING_WIDTH = DEFAULT_GRID[0].size
 val TEXT_MAXLEN: Int = 1000
+val NAME_LEN: Int = 30
+
+fun String.checkName() {
+    if (length !in 1..NAME_LEN || !all { it.isLetterOrDigit() || it==' ' })
+        WebErrorType.FormError.err("Your name and team name should be between 1 and $NAME_LEN characters long and only contain letters, numbers, and spaces")
+}
 
 @Serializable
 data class UserData(
     val name: String?,
     val lookingForTeam: Boolean=false,
     val cfHandle: String?=null,
-    val cfTeam: String?=null,
+//    val cfTeam: String?=null,
     val ans: String?=null,
 
     @Serializable(with=Grid::class)
@@ -169,15 +179,17 @@ data class UserData(
         arrayOf<Any?>(name, ans, randomNumber).all { it!=null }
 
     fun checkFields() {
-        if (arrayOf(name, cfHandle, cfTeam, ans, randomNumber).any {
+        if (arrayOf(name, cfHandle, ans, randomNumber).any {
             it!=null && it.length !in 1..TEXT_MAXLEN
-        }) throw WebErrorType.FormError.err("Text is too long")
+        }) WebErrorType.FormError.err("Text is too long")
+
+        name?.checkName()
 
         if (drawing.size!=DRAWING_HEIGHT || drawing.any { it.size!=DRAWING_WIDTH })
-            throw WebErrorType.FormError.err("Invalid drawing")
+            WebErrorType.FormError.err("Invalid drawing")
 
         if (enjoyment<0.0 || enjoyment>100.0)
-            throw WebErrorType.FormError.err("Invalid enjoyment")
+            WebErrorType.FormError.err("Invalid enjoyment")
     }
 }
 
@@ -189,7 +201,7 @@ fun dataFromForm(form: Map<String, String>) =
             formB["name"],
             formB.containsKey("lookingForTeam"),
             formB["cfHandle"],
-            formB["cfTeam"],
+//            formB["cfTeam"],
             formB["ans"],
             Grid.decode(form["drawing"]!!),
             Pizza.valueOf(formB["pizza"]!!),
@@ -203,7 +215,7 @@ fun dataFromForm(form: Map<String, String>) =
     }.getOrElse {
         when (it) {
             is WebError -> throw it
-            else -> throw WebErrorType.FormError.err()
+            else -> WebErrorType.FormError.err()
         }
     }
 
@@ -214,11 +226,14 @@ data class UserInfo(
     val email: String,
     @Serializable(with=InstantSerializer::class)
     val lastSaved: Instant,
-    val submitted: UserData?
+    val submitted: UserData?,
+    val teamCode: String,
+    val accepted: Boolean
 );
 
 data class Dashboard(
     val closed: Boolean,
+    val inProgress: Boolean,
     val maxSubmissions: Int,
     val numSubmissions: Int,
     val users: List<UserInfo>
@@ -248,10 +263,13 @@ class DB(dir: String, env: Environment) {
     object User: Table(name="user") {
         val id: Column<String> = text("id")
         val num: Column<Int> = integer("num").uniqueIndex();
+        val teamCode: Column<String> = text("team_code").index().references(Team.code)
 
         val email: Column<String> = text("email").uniqueIndex()
         val savedData: Column<UserData> = json("saved_data", Json.Default)
         val data: Column<UserData?> = json<UserData>("data", Json.Default).nullable()
+
+        val accepted: Column<Boolean> = bool("accepted").default(false)
 
         override val primaryKey: PrimaryKey = PrimaryKey(id)
     }
@@ -273,6 +291,13 @@ class DB(dir: String, env: Environment) {
         val oauthExpires: Column<Instant> = timestamp("oauth_expires")
 
         override val primaryKey: PrimaryKey = PrimaryKey(id)
+    }
+
+    object Team: Table(name="team") {
+        val code: Column<String> = text("code")
+        val name: Column<String> = text("name")
+
+        override val primaryKey = PrimaryKey(code)
     }
 
     fun genKey(): String {
@@ -341,50 +366,90 @@ class DB(dir: String, env: Environment) {
     suspend fun getDashboard(): Dashboard = query {
         Dashboard(
             prop("closed")=="true",
+            prop("inProgress")=="true",
             maxSubmissions,
             User.select(User.id).where { User.data.isNotNull() }.count().toInt(),
             User.selectAll().map {
                 UserInfo(it[User.id], it[User.num], it[User.email],
-                    it[User.savedData].time, it[User.data])
+                    it[User.savedData].time, it[User.data],
+                    it[User.teamCode], it[User.accepted])
             }
         )
     }
 
-    data class SavedData(val saved: UserData, val submitted: UserData?, val email: String)
+    suspend fun setTeamsAccepted(teams: List<String>, acc: Boolean) = query {
+        User.update({ User.teamCode inList teams }) {
+            it[accepted] = acc
+        }
+    }
+
+    suspend fun getInTeam(code: String, other: String?=null) = query {
+        val op = User.teamCode eq code
+        User.select(User.email).where {
+            if (other==null) op else op and (User.id neq other)
+        }.map { it[User.email] }.toList()
+    }
+
+    suspend fun getTeamName(id: String) = query {
+        Team.select(Team.name).where { Team.code eq id }.single()[Team.name]
+    }
+
+    data class SavedData(val saved: UserData, val submitted: UserData?,
+                         val email: String, val teamCode: String, val teamName: String,
+                         val teamWith: List<String>, val accepted: Boolean?)
 
     inner class SessionDB(val sid: String, val suid: String?,
                           val state: String, val oauthExpire: Instant) {
         suspend fun checkAdmin() = query {
             if ((User.select(User.email).where { User.id eq uid() }
                 .singleOrNull()?.get(User.email)!=adminEmail))
-                throw WebErrorType.Unauthorized.err("You aren't an administrator.")
+                WebErrorType.Unauthorized.err("You aren't an administrator.")
+        }
+
+        suspend fun getTeam() = query {
+            val u = User.select(User.teamCode, User.accepted)
+                .where { User.id eq uid() }.singleOrNull() ?: WebErrorType.NoUser.err()
+            if (!u[User.accepted] || prop("inProgress")!="true")
+                WebErrorType.Unauthorized.err("You aren't in the contest!")
+            u[User.teamCode]
         }
 
         suspend fun withEmail(uEmail: String, name: String?): SessionDB = query {
             if (suid!=null)
-                throw WebErrorType.BadRequest.err("Session already has user. Please logout first!")
+                WebErrorType.BadRequest.err("Session already has user. Please logout first!")
 
             if (Instant.now() > oauthExpire)
-                throw WebErrorType.Unauthorized.err("It's been too long since you tried logging in.")
+                WebErrorType.Unauthorized.err("It's been too long since you tried logging in.")
 
             val u = User.select(User.id).where { User.email eq uEmail }.singleOrNull()
 
             val uid = u?.get(User.id) ?: genId()
 
-            if (u!=null)
+            if (u!=null) {
                 Session.deleteWhere { (Session.userId eq u[User.id]) and (Session.id neq sid) }
-            else User.insert {
-                it[id] = uid
-                it[email] = uEmail
-                it[num] = (User.select(User.num).maxOfOrNull { row -> row[User.num] } ?: 0) + 1
-                it[savedData] = UserData(name)
+            } else {
+                val tc = genId()
+
+                Team.insert {
+                    it[code] = tc
+                    it[Team.name] = name ?: uEmail
+                }
+
+                User.insert {
+                    it[id] = uid
+                    it[email] = uEmail
+                    it[num] = (User.select(User.num).maxOfOrNull { row -> row[User.num] } ?: 0) + 1
+                    it[savedData] = UserData(name)
+                    it[teamCode] = tc
+                }
             }
 
             Session.update({ Session.id eq sid }) { it[userId] = uid }
             SessionDB(sid, uid, state, oauthExpire)
         }
 
-        private fun uid() = suid ?: throw WebErrorType.Unauthorized.err("No user found associated with this session.")
+        private fun uid() = suid ?: WebErrorType.NoUser.err()
+        private fun tid() = User.select(User.teamCode).where { User.id eq uid() }.single()[User.teamCode]
 
         suspend fun setData(newData: UserData, submit: Boolean=false, unsubmit: Boolean=false) = query {
             if (User.update({ User.id eq uid() }) {
@@ -392,25 +457,70 @@ class DB(dir: String, env: Environment) {
                 if (submit) it[data] = newData
                 else if (unsubmit) it[data] = null
             }==0)
-                throw WebErrorType.BadRequest.err("User not found")
+                WebErrorType.BadRequest.err("User not found")
         }
 
         suspend fun isClosed(): Boolean = query {
+            var crit = (User.id eq uid()) and User.data.isNotNull()
+
+            if (prop("inProgress")=="true") crit = crit and (User.accepted eq true)
+
             (Instant.now() < open
                 || User.select(User.id).where { User.data.isNotNull() }.count() >= maxSubmissions
                 || prop("closed")=="true")
-            && User.select(User.id).where { (User.id eq uid()) and User.data.isNotNull() }
+            && User.select(User.id).where { crit }
                 .singleOrNull()==null
         }
-
+        
         suspend fun getSavedData() = query {
             User.selectAll().where { User.id eq uid() }.singleOrNull()
-                ?.let { SavedData(it[User.savedData], it[User.data], it[User.email]) }
-                ?: throw WebErrorType.Other.err("User not found")
+                ?.let { SavedData(
+                    it[User.savedData], it[User.data],
+                    it[User.email], it[User.teamCode], getTeamName(it[User.teamCode]),
+                    getInTeam(it[User.teamCode], uid()),
+                    if (prop("inProgress")=="true") it[User.accepted] else null
+                ) }
+                ?: WebErrorType.Other.err("User not found")
+            }
+        
+        suspend fun leaveTeam() = query {
+            val tc = genId()
+
+            val rec = User.select(User.email, User.savedData, User.teamCode)
+                .where { User.id eq uid() }.single()
+
+            Team.insert {
+                it[code] = tc
+                it[name] = rec[User.savedData].name ?: rec[User.email]
+            }
+
+            User.update({ User.id eq uid() }) { it[teamCode] = tc }
+
+            if (User.select(User.id).where { User.teamCode eq rec[User.teamCode] }.empty())
+                Team.deleteWhere { Team.code eq rec[User.teamCode] }
         }
 
-        suspend fun detachUser() = query {
-            Session.update({ Session.id eq sid }) { it[userId] = null }
+        suspend fun joinTeam(code: String) = query {
+            val acc = User.select(User.accepted).where { User.teamCode eq code }.toList()
+            if (prop("inProgress")=="true" && acc.any { !it[User.accepted] })
+                WebErrorType.BadRequest.err("Some people in this team haven't been accepted")
+
+            if (acc.isEmpty()) WebErrorType.NotFound.err("No team found with that code")
+            else if (acc.size>=MAX_TEAM_SIZE) WebErrorType.BadRequest.err("Team is full")
+
+            val curTeam = tid()
+            User.update({ User.id eq uid() }) { it[teamCode] = code }
+
+            if (User.select(User.id).where { User.teamCode eq curTeam }.empty())
+                Team.deleteWhere { Team.code eq curTeam }
+        }
+
+        suspend fun setTeamName(newName: String) = query {
+            newName?.checkName()
+
+            Team.update({ Team.code eq tid() }) {
+                it[name] = newName
+            }
         }
 
         suspend fun remove() = query {

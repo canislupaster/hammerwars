@@ -1,0 +1,186 @@
+@import win.hammerwars.Language
+@import win.hammerwars.Team
+@import win.hammerwars.VerdictData
+
+@param teamName: String?
+@param team: Team?
+@param verdict: VerdictData?
+@param wsUrl: String
+
+@template.main(
+    title="HammerWars - The Battle!",
+    body=@`
+    <div class="section bg center" id="statement" >
+        <div class="container" >
+            <h1>Peaceful War</h1>
+            <p>
+                It's 2070 and after expanding throughout Indiana and beyond (c.f. campus division problem), Purdue and its students have overthrown all world leaders. In this global utopia of high-IQ university students who know the mutual benefits of cooperation, each country is incredibly kind and decides to give to other countries. In particular, your team has control over <b>${teamName}</b>.
+            </p>
+
+            <p>
+                Each turn, you make a proposal for every other country that they gain $0&lt; Y\leq 100$ points while you gain $0 \leq X&lt; 100$ points. Because of your infinite charity, $Y &gt; X$. After this giving phase, you can choose exactly one proposal from all the other countries to accept. Any number of your proposals may be accepted by the other players.
+
+                Whichever country has the most points after a random number of rounds (consisting giving and accepting phases) wins. Alternatively, if only two countries are left, then the one with the most points wins.
+            </p>
+
+            <h3>I/O</h3>
+            <p>
+                Each turn will begin with a line containing two numbers, $t$ and $n$.
+
+                <ul>
+                    <li>If $t=1$, then the giving phase has begun. The $i$th of the following $n$ lines contains two integers, $id_i$ and $x_i$, denoting that team $id_i$ has $x_i$ points. In this case, you should print $n$ lines, the $i$th of which contains two integers $X$ and $Y$ separated by a space ($0\leq X &lt; Y\leq 100$), which is your proposal to country $id_i$.</li>
+
+                    <li>If $t=2$, then the accepting phase has begun. The $i$th of the following $n$ lines contains a proposal $id_i\ X\ Y$ (you gain $Y$ while team $id_i$ gains $X$). You must output one of the $id_i$, denoting which team's proposal you accept.</li>
+                </ul>
+
+                <b>Note that as programs crash, the numbering may change, but the identifiers $id_i$ will remain stable.</b>
+            </p>
+        </div>
+    </div>
+
+    @if (team!=null && verdict==null)
+        <div class="status success" >
+            <h2>Submitted</h2>
+            <form method="POST" action="/game/unsubmit" >
+                <p>Your team has submitted for the next game and has passed an interaction test. <button class="link" >Unsubmit?</button></p>
+            </form>
+        </div>
+    @elseif (verdict!=null)
+        <div class="status error" >
+            <h2>${verdict.v.msg()}</h2>
+            <pre class="code" >${verdict.out ?: "No additional info."}</pre>
+        </div>
+    @endif
+
+    <div class="section" >
+        <div class="container" id="leaderboard" >
+            <p>Loading leaderboard...</p>
+        </div>
+    </div>
+
+    <div class="section" >
+        <div class="container" >
+        @if (teamName==null)
+            <form style="display: inline" action="/login" method="POST" target="_blank" >
+                <p>You don't seem to be in a team, so you can't submit anything. Try logging in
+                    <button class="link" >here</button>
+                    first, then refreshing this page.</p>
+            </form>
+        @else
+            <p>Submitting on behalf of team <b>${teamName}</b>.</p>
+
+            <form method="POST" action="/game/submit" id="submitForm" >
+                <div class="group" >
+                    <label for="language" >Language</label>
+                    <select name="language" value="${Language.ext[team?.lang] ?: "cpp"}" >
+                        <option value="py" >Python</option>
+                        <option value="cpp" >C++ 17</option>
+                        <option value="java" >Java 17</option>
+                        <option value="js" >Javascript</option>
+                    </select>
+                </div>
+
+                <label for="code" >Code</label>
+                <div id="editor" >${team?.code}</div>
+
+                <div class="center" >
+                    <button class="btn" ><h2>Submit</h2></button>
+                </div>
+            </form>
+        @endif
+        </div>
+    </div>`,
+    head=@`
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+
+    <script src="/ace/src-min-noconflict/ace.js" type="text/javascript" charset="utf-8" ></script>
+
+    <script>
+        let ws = new WebSocket("${wsUrl}");
+
+        ws.onerror = (e) => {
+            console.error("WebSocket error", e);
+            window.setTimeout(() => {
+                console.log("reconnecting...");
+                ws = new WebSocket("${wsUrl}"), 500
+            });
+        }
+
+    @raw
+        ws.onmessage = (msg) => {
+            const ld = JSON.parse(msg.data);
+            const elem = document.getElementById("leaderboard");
+            elem.innerHTML = "";
+
+            const p = document.createElement("p");
+            p.classList.add("status");
+            p.innerText = (ld.curRound==null ? "The game has not been run yet" : (ld.running ? `Results of round ${ld.curRound}:` : `The game ended after ${ld.curRound} rounds.`));
+            elem.appendChild(p);
+
+            if (ld.teams.length==0) return;
+
+            let table = document.createElement("table");
+            table.classList.add("teams");
+            elem.appendChild(table);
+
+            for (const team of ld.teams.sort((a, b) => b.pts - a.pts)) {
+                const x = document.createElement("tr");
+                x.classList.add("team");
+
+                if (team.verdict==null) team.verdict="OK";
+
+                for (const prop of ["name", "verdict", "pts"]) {
+                    const y = document.createElement("td");
+                    y.innerText = team[prop];
+
+                    if (prop=="verdict") y.classList.add(team[prop].toLowerCase());
+
+                    y.classList.add(prop);
+                    x.appendChild(y)
+                }
+
+                table.appendChild(x);
+            }
+        };
+
+        let aceEditor;
+
+        const mode = (v) => {
+            const modeStr = () => {switch (v) {
+                case "py": return "python";
+                case "cpp": return "c_cpp";
+                case "java": return "java";
+                case "js": return "javascript";
+            }};
+
+            aceEditor.session.setMode(`ace/mode/${modeStr()}`);
+        };
+
+        document.addEventListener("DOMContentLoaded", () => {
+            renderMathInElement(document.getElementById("statement"), {
+              delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false},
+                  {left: '\\(', right: '\\)', display: false},
+                  {left: '\\[', right: '\\]', display: true}
+              ],
+              throwOnError : false
+            });
+
+            aceEditor = ace.edit("editor");
+            aceEditor.setTheme("ace/theme/github");
+            aceEditor.setFontSize(18);
+
+            const elem = document.getElementsByName("language")[0];
+            elem.addEventListener("change", (e) => mode(e.target.value));
+            mode(elem.value);
+
+            document.getElementById("submitForm").addEventListener("formdata", (e) => {
+                e.formData.append("code", aceEditor.getValue());
+            });
+        });
+    </script>
+    @endraw`
+)
