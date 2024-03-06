@@ -118,8 +118,9 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
         suspend fun makeTeam(lang: Language, code: String, isDev: Boolean): Team {
             val id = getNextBid()
             val path =
-                if (!isDev) ProcessBuilder("isolate", "-b", id.toString(), "--init")
-                    .start().wait(true).out.trim()
+                if (!isDev)
+                    "${ProcessBuilder("isolate", "-b", id.toString(), "--init")
+                        .start().wait(true).out.trim()}/box"
                 else Files.createTempDirectory("hammerwars_team${id}").toString()
             return Team(lang, code, id, path, !isDev)
         }
