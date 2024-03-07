@@ -281,7 +281,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                         runBlocking {
                             listenersLock.withLock { listeners.add(it) }
                         }
-                        
+
                         launch {
                             Json.encodeToString(getLeaderboard()).let { s->
                                 launch(Dispatchers.IO) { it.send(s) }

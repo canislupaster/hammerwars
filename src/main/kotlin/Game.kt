@@ -49,8 +49,8 @@ fun verdict(v: Verdict, out: String?=null) = out?.trim().let {
 data class ProcResult(val out: String, val err: String, val code: Int)
 
 suspend fun Process.wait(assert: Boolean=false): ProcResult = withContext(Dispatchers.IO) {
-    val s = runCatching {String(inputStream.readAllBytes())}.getOrElse { "" }
-    val e = runCatching {String(errorStream.readAllBytes())}.getOrElse { "" }
+    val s = runCatching {InputStreamReader(inputStream).use { it.readText() }}.getOrElse { "" }
+    val e = runCatching {InputStreamReader(errorStream).use { it.readText() }}.getOrElse { "" }
     val c = waitFor()
     if (assert && c!=0) WebErrorType.Other.err(e)
     ProcResult(s, e, c)

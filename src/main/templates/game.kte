@@ -12,7 +12,7 @@
     body=@`
     <div class="section bg center" id="statement" >
         <div class="container" >
-            <h1>Peaceful War</h1>
+            <h1>Charity Standoff</h1>
             <p>
                 After expanding throughout Indiana and beyond (c.f. campus division problem), Purdue and its students have overthrown all world leaders. In this global utopia of high-IQ university students who know the mutual benefits of cooperation, each country is incredibly kind and decides to give to other countries. In particular, your team has control over <b>${teamName}</b>.
             </p>
