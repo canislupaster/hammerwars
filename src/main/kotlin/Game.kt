@@ -79,6 +79,7 @@ suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
 val SIZE_LIMIT = 50*1024 // KB
 val MEM_LIMIT = 512*1024 // KB
 val CPU_TIME = 10 // s
+val ROUND_TL = 200 // s
 val INTERACT_TL = 1 // s
 val COMPILE_TIME = 5 // s
 
@@ -159,7 +160,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
             }
         }.getOrNull()
 
-    suspend fun compile() = lock.withLock {
+    suspend fun compile() {
         File("$path/main.${Language.ext[lang]}").writeText(code)
 
         val compileOut = when (lang) {
@@ -191,7 +192,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
                     Language.Cpp -> arrayOf("./main")
                     Language.Python -> arrayOf("python3", "main.py")
                     Language.JS -> arrayOf("node", "main.js")
-                })
+                }, ROUND_TL)
 
                 curProc!!
             }
@@ -218,8 +219,9 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
     suspend fun cleanup() = lock.withLock {
         stop()
 
-        if (isolate) ProcessBuilder("isolate", "-b", id.toString(), "--cleanup")
-            .start().wait(true)
+        if (isolate)
+            ProcessBuilder("isolate", "-b", id.toString(), "--cleanup")
+                .start().wait(true)
         else File(path).deleteRecursively()
 
         free(id)
