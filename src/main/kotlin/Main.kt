@@ -38,7 +38,8 @@ suspend fun main(args: Array<String>) = coroutineScope {
         else -> WebError(WebErrorType.Other, ex.message)
     }
 
-    val game = Game().apply {start()}
+    val game = Game()
+    launch { game.start() }
 
     val teamId = mutableMapOf<String, Team>()
     val teamIdLock = Mutex()
@@ -53,7 +54,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
         val isolateArgs = if (isDev) listOf() else environment.config.getStringList("isolateArgs")
 
         val dir = System.getProperty("user.dir")!!
-        val codeResolver = DirectoryCodeResolver(Path.of(dir, "src/main/templates"), )
+        val codeResolver = DirectoryCodeResolver(Path.of(dir, "src/main/templates"))
 
         val jte = JteModule(
             if (isDev) TemplateEngine.create(codeResolver, Path.of(dir, "jte-classes-dev"), gg.jte.ContentType.Html)
@@ -67,9 +68,9 @@ suspend fun main(args: Array<String>) = coroutineScope {
         val auth = Auth(root, environment.getProperty("msalClientId")!!,
             environment.getProperty("msalClientSecret")!!, db)
 
-        val wsUrl = URI(root).let { rootUrl ->
-            URI(if (isDev) "ws" else "wss", rootUrl.authority, "/game/ws", null,null)
-        }.toString()
+        val wsUrl =
+            URI(if (isDev) "ws" else "wss", URI(root).authority,
+                "/game/ws", null,null).toString()
 
         suspend fun getSession(ctx: Context, admin: Boolean=false): DB.SessionDB {
             val (a,b) = runCatching {
@@ -119,7 +120,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
 
             post("/login") {
                 val nonce = db.genKey()
-                var cookies = mutableMapOf<String, String>()
+                val cookies = mutableMapOf<String, String>()
                 runCatching { getSession(ctx).remove() }
 
                 val makeSes = db.makeSession()
@@ -332,7 +333,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
 
                 post("/run") {
                     getSession(ctx, true)
-                    game.changes.send(RunGame())
+                    game.changes.send(RunGame)
                     ctx.sendRedirect("/dashboard")
                 }
             }
@@ -349,8 +350,8 @@ suspend fun main(args: Array<String>) = coroutineScope {
 
         before {
             for (s in listOf("SESSION", "TOKEN")) {
-                ctx.cookie(s)?.let {
-                    ctx.setResponseCookie(Cookie(s, it.value()).apply {
+                ctx.cookie(s).valueOrNull()?.let {
+                    ctx.setResponseCookie(Cookie(s, it).apply {
                         isHttpOnly = true
                         isSecure = true
                     })

@@ -39,7 +39,7 @@ enum class Verdict {
 }
 
 class VerdictData(val v: Verdict, val out: String?=null):
-    WebError(WebErrorType.JudgingError, "${v.toString()} ${v.msg()}")
+    WebError(WebErrorType.JudgingError, "${v} ${v.msg()}")
 
 fun verdict(v: Verdict, out: String?=null) = out?.trim().let {
     VerdictData(v, if (it.isNullOrEmpty()) null else it)
@@ -60,10 +60,10 @@ suspend fun Process.writeS(s: String) = withContext(Dispatchers.IO) {
     outputStream.flush()
 }
 
-val READ_INTERVAL = 100L //ms
+const val READ_INTERVAL = 100L //ms
 suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
     val start = System.currentTimeMillis()
-    var buf = StringBuffer()
+    val buf = StringBuffer()
 
     do {
         if (!isAlive)
@@ -77,14 +77,15 @@ suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
     throw verdict(Verdict.TLE, "output:\n${buf.toString().takeLast(500)}")
 }
 
-val SIZE_LIMIT = 50*1024 // KB
-val MEM_LIMIT = 512*1024 // KB
-val CPU_TIME = 10 // s
-val ROUND_TL = 200 // s
-val INTERACT_TL = 1 // s
-val COMPILE_TIME = 5 // s
+const val SIZE_LIMIT = 50*1024 // KB
+const val MEM_LIMIT = 512*1024 // KB
+const val CPU_TIME = 10 // s
+const val ROUND_TL = 200 // s
+const val INTERACT_TL = 1 // s
+const val COMPILE_TIME = 5 // s
 
-class Team(val lang: Language, val code: String, val id: Int, val path: String, val isolate: Boolean, val isolateArgs: List<String>) {
+class Team(val lang: Language, val code: String, val id: Int, val path: String,
+           private val isolate: Boolean, private val isolateArgs: List<String>) {
     val lock = Mutex()
 
     private var curProc: Process?=null
@@ -111,12 +112,12 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
             path.toString()
         }
 
-        suspend fun getNextBid(): Int = mut.withLock {
+        private suspend fun getNextBid(): Int = mut.withLock {
             if (unusedBids.isEmpty()) maxBid++
             else unusedBids.first().also { unusedBids.remove(it) }
         }
 
-        suspend fun free(bid: Int) = mut.withLock {unusedBids.add(bid)}
+        private suspend fun free(bid: Int) = mut.withLock {unusedBids.add(bid)}
 
         suspend fun makeTeam(lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
             val id = getNextBid()
@@ -177,8 +178,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
             }
             Language.Cpp -> {
                 runCmd(("/usr/bin/g++ main.cpp -std=c++17 -O2 -Wall -Wextra" +
-                        "-Wfloat-equal -Wduplicated-cond" +
-                        "-Wlogical-op -o main")
+                        " -Wfloat-equal -Wduplicated-cond -Wlogical-op -o main")
                     .split(" ").toTypedArray(), COMPILE_TIME).wait()
             }
             else -> ProcResult("", "", 0)
@@ -241,7 +241,7 @@ class GameTeam(val t: Team, val pts: Int)
 sealed interface GameMessage
 class AddTeam(val t: Team): GameMessage
 class RemoveTeam(val id: Int): GameMessage
-class RunGame(): GameMessage
+data object RunGame: GameMessage
 
 data class Proposal(val from: Int, val to: Int, val a: Int, val b: Int)
 
@@ -277,7 +277,7 @@ class Game {
 
     suspend fun Team.interact2(proposals: List<Proposal>): Proposal? =
         interact("2 ${proposals.size}\n${
-            proposals.joinToString("\n", postfix="\n") { it -> "${it.from} ${it.a} ${it.b}" }
+            proposals.joinToString("\n", postfix="\n") { "${it.from} ${it.a} ${it.b}" }
         }") {
             val idx = it.toIntOrNull()
                 ?: throw verdict(Verdict.INT, "Accepted proposal not an integer")
@@ -322,16 +322,20 @@ class Game {
         }
     }
 
-    suspend fun CoroutineScope.round(): Boolean {
-        val rem = remaining() ?: return true
+    suspend fun round(): Boolean = coroutineScope {
+        val rem = remaining() ?: return@coroutineScope true
 
-        val props = rem.map { (id, gt) -> async {
-            gt.t.interact1(rem.filterNot { (id2,_) -> id2==id }.mapValues {it.value.pts}) ?: listOf()
-        } }.awaitAll().flatten().groupBy { it.to }
+        val props = rem.map { (id, gt) ->
+            async {
+                gt.t.interact1(rem.filterNot { (id2, _) -> id2 == id }.mapValues { it.value.pts }) ?: listOf()
+            }
+        }.awaitAll().flatten().groupBy { it.to }
 
-        val accepted = (remaining() ?: return true).map { (id, gt) -> async {
-            gt.t.interact2(props[id]!!)
-        } }.awaitAll().mapNotNull { it }
+        val accepted = (remaining() ?: return@coroutineScope true).map { (id, gt) ->
+            async {
+                gt.t.interact2(props[id]!!)
+            }
+        }.awaitAll().mapNotNull { it }
 
         val accFrom = accepted.groupBy { it.from }
         val accTo = accepted.groupBy { it.to }
@@ -339,16 +343,16 @@ class Game {
         lock.withLock {
             teams.replaceAll { id, gt ->
                 GameTeam(gt.t, gt.pts
-                        + (accFrom[id]?.sumOf {it.a} ?: 0)
-                        + (accTo[id]?.sumOf {it.b} ?: 0))
+                        + (accFrom[id]?.sumOf { it.a } ?: 0)
+                        + (accTo[id]?.sumOf { it.b } ?: 0))
             }
         }
 
-        return false
+        false
     }
 
-    suspend fun CoroutineScope.start() = launch {
-        Runtime.getRuntime().addShutdownHook(Thread() {
+    suspend fun start() = coroutineScope {
+        Runtime.getRuntime().addShutdownHook(Thread {
             println("Cleaning up isolate boxes")
 
             runBlocking {
@@ -358,7 +362,7 @@ class Game {
                     } }.awaitAll()
                 }
             }
-        });
+        })
 
         while (true) {
             when (val msg = changes.receive()) {

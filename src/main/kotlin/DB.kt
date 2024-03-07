@@ -33,7 +33,7 @@ import kotlin.io.path.absolutePathString
 
 val SESSION_EXPIRE: Duration = Duration.ofDays(2)
 val OAUTH_EXPIRE: Duration = Duration.ofMinutes(5)
-val MAX_TEAM_SIZE = 3
+const val MAX_TEAM_SIZE = 3
 
 enum class WebErrorType {
     NotFound,
@@ -148,8 +148,8 @@ val DEFAULT_GRID = Grid.decode("""
 
 val DRAWING_HEIGHT = DEFAULT_GRID.size
 val DRAWING_WIDTH = DEFAULT_GRID[0].size
-val TEXT_MAXLEN: Int = 1000
-val NAME_LEN: Int = 30
+const val TEXT_MAXLEN: Int = 1000
+const val NAME_LEN: Int = 30
 
 fun String.checkName() {
     if (length !in 1..NAME_LEN || !all { it.isLetterOrDigit() || it==' ' })
@@ -195,7 +195,7 @@ data class UserData(
 
 fun dataFromForm(form: Map<String, String>) =
     runCatching {
-        val formB = form.mapValues { (k,v) -> v.ifBlank { null }?.trim() }
+        val formB = form.mapValues { (_,v) -> v.ifBlank { null }?.trim() }
 
         val dat = UserData(
             formB["name"],
@@ -229,7 +229,7 @@ data class UserInfo(
     val submitted: UserData?,
     val teamCode: String,
     val accepted: Boolean
-);
+)
 
 data class Dashboard(
     val closed: Boolean,
@@ -237,7 +237,7 @@ data class Dashboard(
     val maxSubmissions: Int,
     val numSubmissions: Int,
     val users: List<UserInfo>
-);
+)
 
 class DB(dir: String, env: Environment) {
     val db: Database = Path.of(dir, env.getProperty("db")
@@ -262,7 +262,7 @@ class DB(dir: String, env: Environment) {
 
     object User: Table(name="user") {
         val id: Column<String> = text("id")
-        val num: Column<Int> = integer("num").uniqueIndex();
+        val num: Column<Int> = integer("num").uniqueIndex()
         val teamCode: Column<String> = text("team_code").index().references(Team.code)
 
         val email: Column<String> = text("email").uniqueIndex()
@@ -314,7 +314,7 @@ class DB(dir: String, env: Environment) {
             digest()
         }
 
-    data class MakeSession(val id: String, val key: String, val state: String);
+    data class MakeSession(val id: String, val key: String, val state: String)
 
     suspend fun makeSession(): MakeSession {
         val uid = genId()
@@ -427,7 +427,7 @@ class DB(dir: String, env: Environment) {
             val uid = u?.get(User.id) ?: genId()
 
             if (u!=null) {
-                Session.deleteWhere { (Session.userId eq u[User.id]) and (Session.id neq sid) }
+                Session.deleteWhere { (userId eq u[User.id]) and (id neq sid) }
             } else {
                 val tc = genId()
 
@@ -439,7 +439,7 @@ class DB(dir: String, env: Environment) {
                 User.insert {
                     it[id] = uid
                     it[email] = uEmail
-                    it[num] = (User.select(User.num).maxOfOrNull { row -> row[User.num] } ?: 0) + 1
+                    it[num] = (User.select(num).maxOfOrNull { row -> row[num] } ?: 0) + 1
                     it[savedData] = UserData(name)
                     it[teamCode] = tc
                 }
@@ -498,7 +498,7 @@ class DB(dir: String, env: Environment) {
             User.update({ User.id eq uid() }) { it[teamCode] = tc }
 
             if (User.select(User.id).where { User.teamCode eq rec[User.teamCode] }.empty())
-                Team.deleteWhere { Team.code eq rec[User.teamCode] }
+                Team.deleteWhere { code eq rec[User.teamCode] }
         }
 
         suspend fun joinTeam(code: String) = query {
@@ -517,7 +517,7 @@ class DB(dir: String, env: Environment) {
         }
 
         suspend fun setTeamName(newName: String) = query {
-            newName?.checkName()
+            newName.checkName()
 
             Team.update({ Team.code eq tid() }) {
                 it[name] = newName
@@ -525,7 +525,7 @@ class DB(dir: String, env: Environment) {
         }
 
         suspend fun remove() = query {
-            Session.deleteWhere { Session.id eq sid }
+            Session.deleteWhere { id eq sid }
         }
     }
 }
