@@ -85,7 +85,7 @@ const val MEM_LIMIT = 512*1024 // KB
 const val CPU_TIME = 10 // s
 const val ROUND_TL = 200 // s
 const val INTERACT_TL = 1 // s
-const val COMPILE_TIME = 5 // s
+const val COMPILE_TIME = 15 // s
 
 class Team(val lang: Language, val code: String, val id: Int, val path: String,
            private val isolate: Boolean, private val isolateArgs: List<String>) {
