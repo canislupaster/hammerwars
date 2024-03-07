@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -44,7 +45,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
     val teamId = mutableMapOf<String, Team>()
     val teamIdLock = Mutex()
 
-    val listeners = mutableListOf<WebSocket>()
+    val listeners = mutableSetOf<WebSocket>()
     val listenersLock = Mutex()
 
     runApp(args) {
@@ -277,10 +278,21 @@ suspend fun main(args: Array<String>) = coroutineScope {
 
                 ws("/ws") {
                     configurer.onConnect {
-                        launch {
+                        runBlocking {
                             listenersLock.withLock { listeners.add(it) }
+                        }
+                        
+                        launch {
                             Json.encodeToString(getLeaderboard()).let { s->
                                 launch(Dispatchers.IO) { it.send(s) }
+                            }
+                        }
+                    }
+
+                    configurer.onClose { ws, _ ->
+                        runBlocking {
+                            listenersLock.withLock {
+                                listeners.remove(ws)
                             }
                         }
                     }
