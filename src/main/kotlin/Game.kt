@@ -149,7 +149,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
             .start()
         else ProcessBuilder(*cmd).directory(File(path)).start()
 
-    private fun checkMeta(compile: Boolean=false): VerdictData? =
+    private fun checkMeta(compile: Boolean=false, reVerdictData: VerdictData?=null): VerdictData? =
         runCatching {
             File(metaFile).readLines()
         }.map { ls ->
@@ -158,18 +158,19 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
                 arr[0] to arr[1]
             }
 
-            val ty = if (compile) Verdict.CE else Verdict.RE
-
             if (map["cg-oom-killed"]=="1")
                 return verdict(Verdict.MEM, map["message"])
 
             when (map["status"]) {
-                "RE" -> verdict(ty, map["message"])
+                "RE" -> reVerdictData ?: verdict(Verdict.RE, map["message"])
                 "TO" -> verdict(Verdict.TLE, map["message"])
-                "SG" -> verdict(ty, "Killed on signal")
+                "SG" -> verdict(Verdict.RE, "Killed on signal")
                 else -> null
             }
-        }.getOrNull()
+        }.getOrNull()?.let {
+            if (compile) VerdictData(Verdict.CE, it.out ?: it.v.msg())
+            else it
+        }
 
     suspend fun compile() {
         File("$path/main.${Language.ext[lang]}").writeText(code)
@@ -186,11 +187,11 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
             else -> ProcResult("", "", 0)
         }
 
-        if (compileOut.code!=0) setVerdict(
-            if (compileOut.err.trim().isNotEmpty())
-                verdict(Verdict.CE, compileOut.err.takeLast(OUTPUT_LIMIT))
-            else checkMeta(true) ?: verdict(Verdict.CE)
-        )
+        if (compileOut.code!=0) {
+            val v = verdict(Verdict.CE, if (compileOut.err.trim().isNotEmpty())
+                compileOut.err.takeLast(OUTPUT_LIMIT) else null)
+            setVerdict(checkMeta(true, v) ?: v)
+        }
     }
 
     suspend fun<T> interact(s: String, cb: suspend (String)->T?): T? {
