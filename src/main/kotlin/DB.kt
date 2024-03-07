@@ -247,7 +247,7 @@ class DB(dir: String, env: Environment) {
 
     val maxSubmissions = env.getProperty("maxSubmissions")!!.toInt()
     val open = Instant.parse(env.getProperty("opens")!!)
-    val adminEmail = env.getProperty("admin")!!
+    val adminEmails = env.config.getStringList("admin")!!.toSet()
 
     val rng = SecureRandom()
 
@@ -401,8 +401,9 @@ class DB(dir: String, env: Environment) {
     inner class SessionDB(val sid: String, val suid: String?,
                           val state: String, val oauthExpire: Instant) {
         suspend fun checkAdmin() = query {
-            if ((User.select(User.email).where { User.id eq uid() }
-                .singleOrNull()?.get(User.email)!=adminEmail))
+            if (!adminEmails.contains(
+                    User.select(User.email).where { User.id eq uid() }
+                        .singleOrNull()?.get(User.email)))
                 WebErrorType.Unauthorized.err("You aren't an administrator.")
         }
 
