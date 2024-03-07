@@ -10,8 +10,7 @@ chown -R $USER:$USER /var/log/hammerwars
 chmod -R u+rw /var/log/hammerwars
 EOF
 #build
-./gradlew build
+./gradlew build --no-daemon
 # kill any existing screen
 screen -S hammerwars -X kill
-# run screen to log to /var/log/hammerwars
-screen -S hammerwars -L -Logfile /var/log/hammerwars/hammerwars.log -dm ./gradlew run
+screen -S hammerwars -L -Logfile /var/log/hammerwars/hammerwars.log -dm java -jar ./build/libs/hammerwars-1.0-SNAPSHOT.jar
