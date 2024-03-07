@@ -50,6 +50,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
         install(NettyServer())
 
         val isDev = environment.getProperty("dev")?.lowercase()=="true"
+        val isolateArgs = if (isDev) listOf() else environment.config.getStringList("isolateArgs")
 
         val dir = System.getProperty("user.dir")!!
         val codeResolver = DirectoryCodeResolver(Path.of(dir, "src/main/templates"), )
@@ -256,7 +257,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                         ?: WebErrorType.BadRequest.err("Invalid language")
                     val code = ctx.form("code").value()
 
-                    val newt = game.addTeam(lang,code,isDev)
+                    val newt = game.addTeam(lang,code,isDev,isolateArgs)
                     teamIdLock.withLock { teamId[t] = newt }
                     renderGame(newt, t)
                 }

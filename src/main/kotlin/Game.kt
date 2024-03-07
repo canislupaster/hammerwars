@@ -26,11 +26,12 @@ enum class Language {
 //MLE is just segfault lmao
 @Serializable
 enum class Verdict {
-    TLE,INT,RE,CE,KILLED,XX;
+    TLE,INT,RE,MEM,CE,KILLED,XX;
     fun msg() = when (this) {
         TLE -> "Time Limit Exceeded"
         INT -> "Bad interaction"
         RE -> "Runtime Error"
+        MEM -> "Memory Limit Exceeded"
         CE -> "Compilation Error"
         KILLED -> "Program Killed"
         XX -> "Unknown Error"
@@ -83,7 +84,7 @@ val ROUND_TL = 200 // s
 val INTERACT_TL = 1 // s
 val COMPILE_TIME = 5 // s
 
-class Team(val lang: Language, val code: String, val id: Int, val path: String, val isolate: Boolean) {
+class Team(val lang: Language, val code: String, val id: Int, val path: String, val isolate: Boolean, val isolateArgs: List<String>) {
     val lock = Mutex()
 
     private var curProc: Process?=null
@@ -103,6 +104,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
         val metaDir: String by lazy {
             val path = Files.createTempDirectory("hammerwars_game")
             Runtime.getRuntime().addShutdownHook(Thread {
+                println("Deleting metadata directory")
                 path.toFile().deleteRecursively()
             })
 
@@ -116,14 +118,14 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
 
         suspend fun free(bid: Int) = mut.withLock {unusedBids.add(bid)}
 
-        suspend fun makeTeam(lang: Language, code: String, isDev: Boolean): Team {
+        suspend fun makeTeam(lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
             val id = getNextBid()
             val path =
                 if (!isDev)
-                    "${ProcessBuilder("isolate", "-b", id.toString(), "--init")
+                    "${ProcessBuilder("isolate", "--cg", "-b", id.toString(), "--init")
                         .start().wait(true).out.trim()}/box"
                 else Files.createTempDirectory("hammerwars_team${id}").toString()
-            return Team(lang, code, id, path, !isDev)
+            return Team(lang, code, id, path, !isDev, isolateArgs)
         }
     }
 
@@ -131,12 +133,15 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
         if (isolate) ProcessBuilder("isolate",
             "-b", id.toString(),
             "--time", CPU_TIME.toString(),
-            "--mem", MEM_LIMIT.toString(),
+            "-p",
+            "--cg",
+            "--cg-mem", MEM_LIMIT.toString(),
             "--meta", metaFile,
             "--tty-hack",
             "--silent",
             *tl?.let { arrayOf("--wall-time", it.toString()) } ?: arrayOf(),
             "--fsize", SIZE_LIMIT.toString(),
+            *isolateArgs.toTypedArray(),
             "--run", "--", *cmd)
             .start()
         else ProcessBuilder(*cmd).directory(File(path)).start()
@@ -152,6 +157,9 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
 
             val ty = if (compile) Verdict.CE else Verdict.RE
 
+            if (map["cg-oom-killed"]=="1")
+                return verdict(Verdict.MEM, map["message"])
+
             when (map["status"]) {
                 "RE" -> verdict(ty, map["message"])
                 "TO" -> verdict(Verdict.TLE, map["message"])
@@ -165,10 +173,10 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
 
         val compileOut = when (lang) {
             Language.Java -> {
-                runCmd(arrayOf("javac", "main.java"), COMPILE_TIME).wait()
+                runCmd(arrayOf("/usr/bin/javac", "main.java"), COMPILE_TIME).wait()
             }
             Language.Cpp -> {
-                runCmd(("g++ main.cpp -std=c++17 -O2 -Wall -Wextra" +
+                runCmd(("/usr/bin/g++ main.cpp -std=c++17 -O2 -Wall -Wextra" +
                         "-Wfloat-equal -Wduplicated-cond" +
                         "-Wlogical-op -o main")
                     .split(" ").toTypedArray(), COMPILE_TIME).wait()
@@ -188,10 +196,10 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
                 if (verdict!=null) return null
 
                 if (curProc==null) curProc = runCmd(when (lang) {
-                    Language.Java -> arrayOf("java", "main")
+                    Language.Java -> arrayOf("/usr/bin/java", "Main")
                     Language.Cpp -> arrayOf("./main")
-                    Language.Python -> arrayOf("python3", "main.py")
-                    Language.JS -> arrayOf("node", "main.js")
+                    Language.Python -> arrayOf("/usr/bin/python3", "main.py")
+                    Language.JS -> arrayOf("/usr/bin/node", "main.js")
                 }, ROUND_TL)
 
                 curProc!!
@@ -220,7 +228,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String, 
         stop()
 
         if (isolate)
-            ProcessBuilder("isolate", "-b", id.toString(), "--cleanup")
+            ProcessBuilder("isolate", "--cg", "-b", id.toString(), "--cleanup")
                 .start().wait(true)
         else File(path).deleteRecursively()
 
@@ -280,11 +288,11 @@ class Game {
             }
         }
 
-    suspend fun addTeam(lang: Language, code: String, isDev: Boolean): Team {
+    suspend fun addTeam(lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
         if (code.length > SIZE_LIMIT)
             WebErrorType.BadRequest.err("Code too long")
 
-        val t = Team.makeTeam(lang, code, isDev)
+        val t = Team.makeTeam(lang, code, isDev, isolateArgs)
         t.compile()
 
         val ids = (1..100).map { Random.nextInt(0, 1000) }.distinct()
@@ -340,6 +348,18 @@ class Game {
     }
 
     suspend fun CoroutineScope.start() = launch {
+        Runtime.getRuntime().addShutdownHook(Thread() {
+            println("Cleaning up isolate boxes")
+
+            runBlocking {
+                lock.withLock {
+                    teams.map { (_, gt) -> async {
+                        gt.t.lock.withLock {gt.t.cleanup()}
+                    } }.awaitAll()
+                }
+            }
+        });
+
         while (true) {
             when (val msg = changes.receive()) {
                 is AddTeam -> {
