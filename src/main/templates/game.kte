@@ -23,6 +23,13 @@
                 Whichever country has the most points after a random number of rounds (consisting giving and accepting phases) wins. Alternatively, if only two countries are left, then the one with the most points wins.
             </p>
 
+            <div class="center" >
+                <img src="/future.jpg" >
+                <p><i>
+                    Artist's rendering
+                </i></p>
+            </div>
+
             <h3>I/O</h3>
             <p>
                 Each turn will begin with a line containing two numbers, $t$ and $n$.
