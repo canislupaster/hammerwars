@@ -32,9 +32,6 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.8.0")
-
     implementation("io.jooby:jooby:3.0.7")
     implementation("io.jooby:jooby-kotlin:3.0.7")
     implementation("io.jooby:jooby-netty:3.0.7")
