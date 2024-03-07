@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import java.io.*
 import java.nio.file.Files
+import java.util.Queue
 import kotlin.random.Random
 
 enum class Language {
@@ -61,6 +62,8 @@ suspend fun Process.writeS(s: String) = withContext(Dispatchers.IO) {
 }
 
 const val READ_INTERVAL = 100L //ms
+const val OUTPUT_LIMIT = 5*1024
+
 suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
     val start = System.currentTimeMillis()
     val buf = StringBuffer()
@@ -74,7 +77,7 @@ suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
         delay(READ_INTERVAL)
     } while (tl==null || System.currentTimeMillis()-start<tl)
 
-    throw verdict(Verdict.TLE, "output:\n${buf.toString().takeLast(500)}")
+    throw verdict(Verdict.TLE, "output:\n${buf.toString().takeLast(OUTPUT_LIMIT)}")
 }
 
 const val SIZE_LIMIT = 50*1024 // KB
@@ -98,7 +101,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
     }
 
     companion object {
-        private val unusedBids = mutableSetOf<Int>()
+        private val unusedBids = mutableListOf<Int>()
         private var maxBid = 0
         private val mut = Mutex()
 
@@ -113,8 +116,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
         }
 
         private suspend fun getNextBid(): Int = mut.withLock {
-            if (unusedBids.isEmpty()) maxBid++
-            else unusedBids.first().also { unusedBids.remove(it) }
+            unusedBids.removeFirstOrNull() ?: maxBid++
         }
 
         private suspend fun free(bid: Int) = mut.withLock {unusedBids.add(bid)}
@@ -185,7 +187,8 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
         }
 
         if (compileOut.code!=0) setVerdict(
-            if (compileOut.err.trim().isNotEmpty()) verdict(Verdict.CE, compileOut.err)
+            if (compileOut.err.trim().isNotEmpty())
+                verdict(Verdict.CE, compileOut.err.takeLast(OUTPUT_LIMIT))
             else checkMeta(true) ?: verdict(Verdict.CE)
         )
     }
@@ -300,7 +303,7 @@ class Game {
         //test interaction
         t.interact1(ids.associateWith { Random.nextInt(0,1000) })
 
-        t.interact2(ids.map {
+        if (t.verdict()==null) t.interact2(ids.map {
             val lo = Random.nextInt(0, 100)
             Proposal(it, -1, lo, Random.nextInt(lo + 1, 101))
         })

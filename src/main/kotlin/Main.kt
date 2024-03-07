@@ -259,7 +259,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                     val code = ctx.form("code").value()
 
                     val newt = game.addTeam(lang,code,isDev,isolateArgs)
-                    teamIdLock.withLock { teamId[t] = newt }
+                    teamIdLock.withLock { teamId.put(t, newt) }?.let {game.removeTeam(it)}
                     renderGame(newt, t)
                 }
 
