@@ -81,7 +81,7 @@ suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
 }
 
 const val SIZE_LIMIT = 50*1024 // KB
-const val MEM_LIMIT = 512*1024 // KB
+const val MEM_LIMIT = 64*1024 // KB
 const val CPU_TIME = 10 // s
 const val ROUND_TL = 200 // s
 const val INTERACT_TL = 1 // s

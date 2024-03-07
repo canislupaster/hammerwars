@@ -83,6 +83,19 @@ suspend fun main(args: Array<String>) = coroutineScope {
             return ses
         }
 
+        suspend fun getTeamId(ctx: Context): String? =
+            when (val ses = getSession(ctx)) {
+                null -> if (db.inProgress()) null
+                    else WebErrorType.NotFound.err("Game not in progress")
+                else -> {
+                    if (!db.inProgress()) ses.checkAdmin()
+                    runCatching {ses.getTeam()}.getOrNull()
+                }
+            }
+
+        suspend fun getTeamIdAssert(ctx: Context): String =
+            getTeamId(ctx) ?: WebErrorType.Unauthorized.err("You're not in a team")
+
         suspend fun getLeaderboard(): Leaderboard = game.lock.withLock {
             val teams = teamIdLock.withLock {
                 teamId.mapNotNull { (id, t) ->
@@ -244,16 +257,12 @@ suspend fun main(args: Array<String>) = coroutineScope {
                     ))
 
                 get("/") {
-                    runCatching {
-                        val tid = getSession(ctx).getTeam()
-                        renderGame(teamIdLock.withLock { teamId[tid] }, tid)
-                    }.getOrElse {
-                        renderGame(null,null)
-                    }
+                    val tid = getTeamId(ctx)
+                    renderGame(tid?.let {teamIdLock.withLock { teamId[it] }}, tid)
                 }
 
                 post("/submit") {
-                    val t = getSession(ctx).getTeam()
+                    val t = getTeamIdAssert(ctx)
 
                     val lang = Language.fromExt[ctx.form("language").value()]
                         ?: WebErrorType.BadRequest.err("Invalid language")
@@ -265,7 +274,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 }
 
                 post("/unsubmit") {
-                    val t = getSession(ctx).getTeam()
+                    val t = getTeamIdAssert(ctx)
 
                     when (val x=teamIdLock.withLock { teamId.remove(t) }) {
                         null -> WebErrorType.NotFound.err("Your team hasn't submitted anything")

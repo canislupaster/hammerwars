@@ -352,9 +352,8 @@ class DB(dir: String, env: Environment) {
     // uhhh
     fun hasOpened() = Instant.now() > open
 
-    suspend fun prop(name: String): String? = query {
+    private suspend fun prop(name: String): String? =
         Props.select(Props.value).where { Props.name eq name }.singleOrNull()?.get(Props.value)
-    }
 
     suspend fun setProp(name: String, value: String) = query {
         Props.upsert(Props.name) {
@@ -362,6 +361,8 @@ class DB(dir: String, env: Environment) {
             it[Props.value] = value
         }
     }
+
+    suspend fun inProgress() = query { prop("inProgress")=="true" }
 
     suspend fun getDashboard(): Dashboard = query {
         Dashboard(
@@ -400,17 +401,19 @@ class DB(dir: String, env: Environment) {
 
     inner class SessionDB(val sid: String, val suid: String?,
                           val state: String, val oauthExpire: Instant) {
+        private suspend fun email() =
+            User.select(User.email).where { User.id eq uid() }
+                .singleOrNull()?.get(User.email)
+
         suspend fun checkAdmin() = query {
-            if (!adminEmails.contains(
-                    User.select(User.email).where { User.id eq uid() }
-                        .singleOrNull()?.get(User.email)))
+            if (!adminEmails.contains(email()))
                 WebErrorType.Unauthorized.err("You aren't an administrator.")
         }
 
         suspend fun getTeam() = query {
             val u = User.select(User.teamCode, User.accepted)
                 .where { User.id eq uid() }.singleOrNull() ?: WebErrorType.NoUser.err()
-            if (!u[User.accepted] || prop("inProgress")!="true")
+            if (!u[User.accepted])
                 WebErrorType.Unauthorized.err("You aren't in the contest!")
             u[User.teamCode]
         }
