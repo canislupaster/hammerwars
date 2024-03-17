@@ -43,7 +43,7 @@ enum class Verdict {
 }
 
 class VerdictData(val v: Verdict, val out: String?=null):
-    WebError(WebErrorType.JudgingError, "${v} ${v.msg()}")
+    WebError(WebErrorType.JudgingError, "$v ${v.msg()}")
 
 fun verdict(v: Verdict, out: String?=null) = out?.trim().let {
     VerdictData(v, if (it.isNullOrEmpty()) null else it)
@@ -253,7 +253,7 @@ class Game {
     val teams = mutableMapOf<Int, GameTeam>()
     var running = false
     var curRound: Int? = null
-    var lastUpdate = Instant.now()
+    var lastUpdate: Instant = Instant.now()
     val lock = Mutex()
 
     private val mutFlow = MutableSharedFlow<Unit>()

@@ -112,7 +112,7 @@ object Grid: KSerializer<List<List<Boolean>>> {
     override fun deserialize(decoder: Decoder): List<List<Boolean>> = decode(decoder.decodeString())
 }
 
-fun convertTime(time: Instant) =
+fun convertTime(time: Instant): String =
     DateTimeFormatter.ofPattern("MMMM d 'at' h:mm a 'ET'")
         .format(LocalDateTime.ofInstant(time, ZoneId.of("America/New_York")))
 
@@ -257,7 +257,7 @@ class DB(dir: String, env: Environment) {
     }
 
     val maxSubmissions = env.getProperty("maxSubmissions")!!.toInt()
-    val open = Instant.parse(env.getProperty("opens")!!)
+    val open: Instant = Instant.parse(env.getProperty("opens")!!)
     val adminEmails = env.config.getStringList("admin")!!.toSet()
 
     val rng = SecureRandom()
@@ -385,7 +385,7 @@ class DB(dir: String, env: Environment) {
     // uhhh
     fun hasOpened() = Instant.now() > open
 
-    private suspend fun prop(name: String): String? =
+    private fun prop(name: String): String? =
         Props.select(Props.value).where { Props.name eq name }.singleOrNull()?.get(Props.value)
 
     suspend fun setProps(kv: Map<String,String>) = query {
@@ -402,7 +402,7 @@ class DB(dir: String, env: Environment) {
 
     suspend fun inProgress() = query { prop("inProgress")=="true" }
 
-    private suspend fun getUsersQ(): List<UserInfo> =
+    private fun getUsersQ(): List<UserInfo> =
         User.selectAll().map {
             UserInfo(it[User.id], it[User.num], it[User.email],
                 it[User.savedData].time, it[User.data],
@@ -477,8 +477,8 @@ class DB(dir: String, env: Environment) {
             }.singleOrNull()
 
         val prevFastest = fastest?.getOrNull(TeamProblem.team)?.let { teamId ->
-            if (runningTime < fastest[TeamProblem.runningTime]!!) {
-                val newStat = fastest[TeamProblem.stat]!!.let {
+            if (runningTime < fastest[TeamProblem.runningTime]) {
+                val newStat = fastest[TeamProblem.stat].let {
                     SubmissionStat(false, it.order, it.numSub, it.time)
                 }
 
@@ -490,7 +490,7 @@ class DB(dir: String, env: Environment) {
                     it[pts]=newPts
                 }
 
-                SubmissionData(teamId, fastest[Team.name]!!, problem, newPts, true, newStat)
+                SubmissionData(teamId, fastest[Team.name], problem, newPts, true, newStat)
             } else null
         }
 
@@ -516,7 +516,7 @@ class DB(dir: String, env: Environment) {
             it[TeamProblem.team] = team[User.team]
             it[TeamProblem.problem] = problem
             //...
-            it[TeamProblem.cfIdAC]=if (fullSolve) cfId else null
+            it[cfIdAC]=if (fullSolve) cfId else null
             it[TeamProblem.runningTime]=runningTime
             it[TeamProblem.pts]=pts
             it[TeamProblem.stat]=stat
@@ -538,7 +538,6 @@ class DB(dir: String, env: Environment) {
             }.toList()
     }
 
-    suspend fun numSubmission() = query { Submission.select(Submission.cfId).count() }
     suspend fun clearSubmissions() = query {
         Submission.deleteAll()
         TeamProblem.deleteAll()
@@ -575,10 +574,10 @@ class DB(dir: String, env: Environment) {
                 WebErrorType.Unauthorized.err("It's been too long since you tried logging in.")
 
             val u = User.select(User.id).where { User.email eq uEmail }.singleOrNull()
-            val uid = u?.get(User.id)
 
-            if (u!=null) {
+            val uid = if (u!=null) {
                 Session.deleteWhere { (userId eq u[User.id]) and (id neq sid) }
+                u[User.id]
             } else {
                 val tc = genId()
                 val tid = Team.insert {
@@ -587,12 +586,11 @@ class DB(dir: String, env: Environment) {
                 }.resultedValues!!.first()[Team.id]
 
                 User.insert {
-                    if (uid!=null) it[id] = uid
                     it[email] = uEmail
                     it[num] = (User.select(num).maxOfOrNull { row -> row[num] } ?: 0) + 1
                     it[savedData] = UserData(name)
                     it[team] = tid
-                }
+                }.resultedValues!!.first()[User.id]
             }
 
             Session.update({ Session.id eq sid }) { it[userId] = uid }
@@ -619,7 +617,7 @@ class DB(dir: String, env: Environment) {
                         if (submit) {
                             it[data] = newData
                             it[cfHandle] = newData.cfHandle
-                        } else if (unsubmit) {
+                        } else {
                             it[data] = null
                             it[cfHandle]=null
                         }

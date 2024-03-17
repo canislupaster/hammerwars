@@ -24,7 +24,7 @@ const val SCOREBOARD_UPDATE_COUNT = 15
 
 @Serializable
 data class ProblemConfig(val pts: Double)
-@kotlinx.serialization.Serializable
+@Serializable
 data class ScoreboardConfig(val contestId: String, val problems: Map<String, ProblemConfig>,
                             val orderBonus: Double, val orderDecay: Double, val fastestBonus: Double,
                             val timePenalty: Double, val subPenalty: Double,
@@ -113,6 +113,7 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val log: Logg
     val root = env.getProperty("root")!!
 
     val rng = SecureRandom()
+    val json = Json {ignoreUnknownKeys=true}
 
     suspend fun req(contest: String, from: Int, count: Int?): ContestStatus {
         val chars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
@@ -137,7 +138,7 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val log: Logg
             digest()
         }.joinToString("") { String.format("%02x", it) }
 
-        return Json {ignoreUnknownKeys=true}.decodeFromString<ContestStatus>(Fuel.get(
+        return json.decodeFromString<ContestStatus>(Fuel.get(
             "https://codeforces.com/api/contest.status",
             params + ("apiSig" to "$rand$hash")
         ).body)
