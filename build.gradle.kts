@@ -30,7 +30,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     implementation("gg.jte:jte-kotlin:3.1.9")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     implementation("io.jooby:jooby:3.0.7")
     implementation("io.jooby:jooby-kotlin:3.0.7")
@@ -47,6 +47,8 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-json:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
     implementation("org.xerial:sqlite-jdbc:3.45.0.0")
+
+    implementation("com.github.kittinunf.fuel:fuel:3.0.0-alpha1")
 }
 
 kotlin {

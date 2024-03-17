@@ -10,23 +10,39 @@
     <div class="section" >
         <div class="container" >
             <form method="POST" style="display: inline" >
-                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"} and ${if (dash.inProgress) "LOCKED" else "UNLOCKED"}.
-
-                @if (dash.closed) <button class="link" formaction="/dashboard/open" >Reopen?</button>
-                @else <button class="link" formaction="/dashboard/close" >Close?</button>
-                @endif
-
-                @if (dash.inProgress) <button class="link" formaction="/dashboard/unlock" >Unlock?</button>
-                @else <button class="link" formaction="/dashboard/lock" >Lock?</button>
-                @endif
+                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"}, ${if (dash.locked) "LOCKED" else "UNLOCKED"}. Contest ${if (dash.inProgress) "IN PROGRESS" else "IDLE"}
 
                 There are ${dash.numSubmissions}/${dash.maxSubmissions} completed submissions (${dash.users.size} saved).
 
                 <button class="link" formaction="/dashboard/run" >Run game</button></p>
             </form>
 
+            <form method="POST" action="/dashboard/props" >
+                <div class="pretty p-switch p-fill">
+                    <input type="checkbox" name="locked" checked="${dash.locked}" />
+                    <div class="state"><label for="locked" >Locked</label></div>
+                </div>
+                <div class="pretty p-switch p-fill">
+                    <input type="checkbox" name="closed" checked="${dash.closed}" />
+                    <div class="state"><label for="closed" >Closed</label></div>
+                </div>
+                <div class="pretty p-switch p-fill">
+                    <input type="checkbox" name="inProgress" checked="${dash.inProgress}" />
+                    <div class="state"><label for="inProgress" >In progress</label></div>
+                </div>
+
+                <p>Scoring configuration:</p>
+                <textarea placeholder="Scoreboard config" name="scoreboard" >${dash.scoreboard}</textarea>
+
+                <button class="btn" ><h1>Update</h1></button>
+            </form>
+
+            <form method="POST" action="/dashboard/clear" >
+                <button class="btn" ><h1>Clear submissions</h1></button>
+            </form>
         </div>
     </div>
+
     <div class="section bg" >
         <div class="center" >
             <div id="spreadsheet" ></div>
@@ -36,10 +52,14 @@
     <form method="POST" >
         <div class="section" >
             <div class="container" >
-                <a id="download" href="#" >Download CSV</a>
+                <div class="group" >
+                    <a id="download" href="#" >Download CSV</a>
+                    <a href="/dashboard/users" >Download user data</a>
+                    <a href="/dashboard/teams" >Download team data</a>
+                </div>
 
-                <p>Team codes:</p>
-                <textarea placeholder="Enter codes here" name="teams" ></textarea>
+                <p>Team IDs:</p>
+                <textarea placeholder="Enter IDs here" name="teams" ></textarea>
 
                 <button formaction="/dashboard/accept" class="btn" >Accept</button>
                 <button formaction="/dashboard/reject" class="btn" >Reject</button>
@@ -63,7 +83,7 @@
             }));
 
             const cols = [
-                {type: "text", title: "id", name: "id", width: 60},
+                {type: "numeric", title: "id", name: "id", width: 60},
                 {type: "numeric", title: "#", name: "num", width: 10},
                 {type: "text", title: "email", name: "email", width: 60},
                 {type: "text", title: "modified", name: "lastSaved", width: 60},
@@ -73,7 +93,7 @@
                 {type: "numeric", title: "enjoyment", name: "enjoyment", width: 10},
                 {type: "text", title: "codeforces", name: "cfHandle", width: 20},
                 {type: "text", title: "shirt", name: "shirt", width: 20},
-                {type: "text", title: "team id", name: "teamCode", width: 20},
+                {type: "numeric", title: "team id", name: "teamId", width: 20},
                 // {type: "text", title: "team", name: "cfTeam", width: 20},
                 {type: "text", title: "name", name: "name", width: 40},
                 {type: "text", title: "answer", name: "ans", width: 20},

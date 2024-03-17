@@ -1,0 +1,154 @@
+body, .modal {
+  position: fixed;
+  top:0; bottom:0;
+  left:0; right:0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container {
+  /* background: rgba(22, 21, 21, 0.7); */
+  padding: 1.5em;
+  /* border-radius: 5px; */
+  max-height: 100vh;
+  overflow-y: scroll;
+  color: white;
+  box-shadow: rgba(0, 0, 0, 0.4) 0 0 15px 15px;
+}
+
+td, .team td {
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  padding: 10px;
+  vertical-align: middle;
+}
+
+.team:nth-child(even) {
+  background: rgba(218, 170, 0, 0.4);
+}
+
+.head td {
+  font-weight: bolder;
+  text-align: center;
+  font-size: 1.5rem;
+}
+
+.head a {
+  color: white;
+}
+
+.teamname {
+  font-weight: bold;
+}
+
+.points {
+  font-style: italic;
+  font-family: monospace;
+}
+
+.status {
+  text-align: center;
+  font-weight: bold;
+}
+
+.solve {
+  font-family: monospace;
+  color: black;
+  font-weight: bolder;
+  text-align: center;
+}
+
+.count {
+  font-size: 2rem;
+}
+
+.solve p {
+  margin: 0;
+  padding: 0;
+}
+
+.unsolved {
+  background: rgb(255, 92, 92);
+}
+
+.solved {
+  background: rgb(131, 255, 154);
+}
+
+td.fast {
+  box-shadow: inset #ffe177 0 0 10px 10px;
+}
+
+.time, .extra {
+  font-size: 1.1rem;
+}
+
+.time {
+  font-style: italic;
+}
+
+.modal {
+  z-index: 100;
+}
+
+#event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 800px;
+  max-width: 70vw;
+  padding: 15px;
+  background: linear-gradient(to bottom, #232526, #414345);
+  border-radius: 10px;
+  border: 5px solid #ffe177;
+  box-shadow: #ffe177 0 0 10px 10px;
+}
+
+#event p {
+  font-size: 2.3rem;
+}
+
+#hero {
+  width: 100%;
+}
+
+#event img {
+  height: 500px;
+}
+
+.container {
+  background: linear-gradient(359deg, #002e58, #004853, #530000, #580e4a, #58420e, #58250e, #440e58);
+  background-size: 1400% 1400%;
+  animation: gradientAnim 55s ease infinite;
+}
+
+@-webkit-keyframes gradientAnim {
+  0%{background-position:87% 0%}
+  50%{background-position:14% 100%}
+  100%{background-position:87% 0%}
+}
+@keyframes gradientAnim {
+  0%{background-position:87% 0%}
+  50%{background-position:14% 100%}
+  100%{background-position:87% 0%}
+}
+
+.extra {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+}
+
+.extra span {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vsep {
+  width: 2px;
+  background: black;
+  margin: 0 4px;
+  padding: 0;
+}

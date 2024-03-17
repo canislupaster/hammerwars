@@ -47,3 +47,7 @@ tmp/
 application.conf
 db.sqlite
 .env
+
+scoreboard/node_modules
+scoreboard/dist-ssr
+scoreboard/*.local

@@ -2,12 +2,15 @@ package win.hammerwars
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import java.io.*
 import java.nio.file.Files
-import java.util.Queue
+import java.time.Instant
 import kotlin.random.Random
 
 enum class Language {
@@ -101,10 +104,10 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
     }
 
     companion object {
-        private val unusedBids = mutableListOf<Int>()
-        private var maxBid = 0
-        private val mut = Mutex()
-
+//        private val unusedBids = mutableListOf<Int>()
+//        private var maxBid = 0
+//        private val mut = Mutex()
+//
         val metaDir: String by lazy {
             val path = Files.createTempDirectory("hammerwars_game")
             Runtime.getRuntime().addShutdownHook(Thread {
@@ -114,15 +117,14 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
 
             path.toString()
         }
+//
+//        private suspend fun getNextBid(): Int = mut.withLock {
+//            unusedBids.removeFirstOrNull() ?: maxBid++
+//        }
+//
+//        private suspend fun free(bid: Int) = mut.withLock {unusedBids.add(bid)}
 
-        private suspend fun getNextBid(): Int = mut.withLock {
-            unusedBids.removeFirstOrNull() ?: maxBid++
-        }
-
-        private suspend fun free(bid: Int) = mut.withLock {unusedBids.add(bid)}
-
-        suspend fun makeTeam(lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
-            val id = getNextBid()
+        suspend fun makeTeam(id: Int, lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
             val path =
                 if (!isDev)
                     "${ProcessBuilder("isolate", "--cg", "-b", id.toString(), "--init")
@@ -235,8 +237,6 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
             ProcessBuilder("isolate", "--cg", "-b", id.toString(), "--cleanup")
                 .start().wait(true)
         else File(path).deleteRecursively()
-
-        free(id)
     }
 }
 
@@ -253,10 +253,13 @@ class Game {
     val teams = mutableMapOf<Int, GameTeam>()
     var running = false
     var curRound: Int? = null
+    var lastUpdate = Instant.now()
     val lock = Mutex()
 
+    private val mutFlow = MutableSharedFlow<Unit>()
+    val flow = mutFlow.asSharedFlow().conflate()
+
     val changes = Channel<GameMessage>(1000)
-    val roundFinished = Channel<Unit>()
 
     suspend fun Team.interact1(pts: Map<Int, Int>): List<Proposal>? = pts.entries.let { ents ->
         interact("1 ${pts.size}\n${
@@ -292,11 +295,11 @@ class Game {
             }
         }
 
-    suspend fun addTeam(lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
+    suspend fun addTeam(id: Int, lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
         if (code.length > SIZE_LIMIT)
             WebErrorType.BadRequest.err("Code too long")
 
-        val t = Team.makeTeam(lang, code, isDev, isolateArgs)
+        val t = Team.makeTeam(id, lang, code, isDev, isolateArgs)
         t.compile()
 
         val ids = (1..100).map { Random.nextInt(0, 1000) }.distinct()
@@ -331,7 +334,7 @@ class Game {
 
         val props = rem.map { (id, gt) ->
             async {
-                gt.t.interact1(rem.filterNot { (id2, _) -> id2 == id }.mapValues { it.value.pts }) ?: listOf()
+                gt.t.interact1(rem.filterNot { (id2, _) -> id2 == id }.mapValues { it.value.pts }) ?: emptyList()
             }
         }.awaitAll().flatten().groupBy { it.to }
 
@@ -355,6 +358,11 @@ class Game {
         false
     }
 
+    private suspend fun up() {
+        lastUpdate=Instant.now()
+        mutFlow.emit(Unit)
+    }
+
     suspend fun start() = coroutineScope {
         Runtime.getRuntime().addShutdownHook(Thread {
             println("Cleaning up isolate boxes")
@@ -368,18 +376,17 @@ class Game {
             }
         })
 
-        while (true) {
+        while (isActive) {
             when (val msg = changes.receive()) {
                 is AddTeam -> {
                     lock.withLock {
+                        up()
                         teams.put(msg.t.id, GameTeam(msg.t, 0))
                     }?.t?.cleanup()
-
-                    roundFinished.send(Unit)
                 }
                 is RemoveTeam -> {
                     lock.withLock { teams.remove(msg.id) }?.t?.cleanup()
-                    roundFinished.send(Unit)
+                    up()
                 }
                 is RunGame -> {
                     val numRounds = Random.nextInt(100,500)
@@ -387,12 +394,15 @@ class Game {
                     lock.withLock {
                         running=true
                         teams.replaceAll {_, gt -> GameTeam(gt.t, 0)}
+                        up()
                     }
 
                     for (i in 1..numRounds) {
-                        lock.withLock { curRound=i }
+                        lock.withLock {
+                            curRound=i
+                            up()
+                        }
                         if (round()) break
-                        roundFinished.send(Unit)
                     }
 
                     lock.withLock {
@@ -400,9 +410,9 @@ class Game {
                         teams.map { (_, gt) -> async {
                             gt.t.lock.withLock {gt.t.stop()}
                         } }.awaitAll()
-                    }
 
-                    roundFinished.send(Unit)
+                        up()
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import gg.jte.resolve.DirectoryCodeResolver
 import io.jooby.*
 import io.jooby.exception.NotFoundException
 import io.jooby.exception.StatusCodeException
+import io.jooby.handler.Asset
 import io.jooby.handler.AssetSource
 import io.jooby.jte.JteModule
 import io.jooby.kt.*
@@ -12,14 +13,19 @@ import io.jooby.netty.NettyServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.ClassDiscriminatorMode
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.net.URI
-import java.net.URL
 import java.nio.file.Path
 
 @Serializable
@@ -42,17 +48,15 @@ suspend fun main(args: Array<String>) = coroutineScope {
     val game = Game()
     launch { game.start() }
 
-    val teamId = mutableMapOf<String, Team>()
-    val teamIdLock = Mutex()
-
-    val listeners = mutableSetOf<WebSocket>()
+    val gameListeners = mutableSetOf<WebSocket>()
+    val scoreboardListeners = mutableSetOf<WebSocket>()
     val listenersLock = Mutex()
 
     runApp(args) {
         install(NettyServer())
 
         val isDev = environment.getProperty("dev")?.lowercase()=="true"
-        val isolateArgs = if (isDev) listOf() else environment.config.getStringList("isolateArgs")
+        val isolateArgs = if (isDev) emptyList() else environment.config.getStringList("isolateArgs")
 
         val dir = System.getProperty("user.dir")!!
         val codeResolver = DirectoryCodeResolver(Path.of(dir, "src/main/templates"))
@@ -64,6 +68,8 @@ suspend fun main(args: Array<String>) = coroutineScope {
         install(jte)
 
         val db = DB(dir, environment)
+
+        val scoreboard = Scoreboard(db, game, environment, log)
 
         val root = environment.getProperty("root")!!
         val auth = Auth(root, environment.getProperty("msalClientId")!!,
@@ -83,44 +89,85 @@ suspend fun main(args: Array<String>) = coroutineScope {
             return ses
         }
 
-        suspend fun getTeamId(ctx: Context): String? =
-            when (val ses = getSession(ctx)) {
-                null -> if (db.inProgress()) null
-                    else WebErrorType.NotFound.err("Game not in progress")
-                else -> {
-                    if (!db.inProgress()) ses.checkAdmin()
-                    runCatching {ses.getTeam()}.getOrNull()
-                }
+        suspend fun getTeamId(ctx: Context): Int? =
+            runCatching {
+                getSession(ctx)
+            }.map {ses->
+                if (!db.inProgress()) ses.checkAdmin()
+                runCatching {ses.getTeam()}.getOrNull()
+            }.getOrElse {
+                if (db.inProgress()) null
+                else WebErrorType.NotFound.err("Game not in progress")
             }
 
-        suspend fun getTeamIdAssert(ctx: Context): String =
+        suspend fun getTeamIdAssert(ctx: Context): Int =
             getTeamId(ctx) ?: WebErrorType.Unauthorized.err("You're not in a team")
 
         suspend fun getLeaderboard(): Leaderboard = game.lock.withLock {
-            val teams = teamIdLock.withLock {
-                teamId.mapNotNull { (id, t) ->
-                    game.teams[t.id]?.let {
-                        TeamData(db.getTeamName(id), it.pts, t.verdict()?.v)
-                    }
-                }
+            val teams = game.teams.mapNotNull { (id, x) ->
+                TeamData(db.getTeamName(id), x.pts, x.t.verdict()?.v)
             }
 
             Leaderboard(teams, game.curRound, game.running)
         }
 
-        assets("/**", AssetSource.create(Path.of(dir, "src/main/static")), {
-              throw NotFoundException("Asset not found")
-        })
+        fun Router.mountDir(path: String) {
+            assets("/**", AssetSource.create(Path.of(dir, path)), {
+                throw NotFoundException("Asset not found")
+            })
+        }
+
+        mountDir("src/main/static")
 
         coroutine {
             launch {
-                while (true) {
-                    game.roundFinished.receive()
+                scoreboard.start(this)
+            }
+
+            launch {
+                game.flow.collect {
                     val s = Json.encodeToString(getLeaderboard())
                     listenersLock.withLock {
-                        for (l in listeners) launch(Dispatchers.IO) { l.send(s) }
+                        for (l in gameListeners) launch(Dispatchers.IO) { l.send(s) }
                     }
                 }
+            }
+
+            launch {
+                scoreboard.flow.collect {
+                    val s = Json { classDiscriminatorMode=ClassDiscriminatorMode.NONE }
+                        .encodeToString(it)
+                    listenersLock.withLock {
+                        for (l in scoreboardListeners) launch(Dispatchers.IO) { l.send(s) }
+                    }
+                }
+            }
+
+            fun wsInit(listeners: MutableSet<WebSocket>, init: suspend WebSocketInitContext.() -> String): WebSocketInitContext.() -> Unit = {
+                configurer.onConnect {sock->
+                    launch {
+                        runCatching {
+                            listenersLock.withLock {
+                                init().let { s-> launch(Dispatchers.IO) { sock.send(s) } }
+                                listeners.add(sock)
+                            }
+                        }.onFailure {
+                            val x = Json.encodeToString(buildJsonObject {
+                                put("type", "error")
+                                put("message", it.message)
+                            })
+
+                            launch(Dispatchers.IO) { sock.send(x) }
+                        }
+                    }
+                }
+
+                configurer.onClose { ws, _ ->
+                    runBlocking {
+                        listenersLock.withLock { listeners.remove(ws) }
+                    }
+                }
+
             }
 
             get("/") {
@@ -132,7 +179,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 ))
             }
 
-            post("/login") {
+            suspend fun HandlerContext.initLogin(): Pair<DB.MakeSession,String> {
                 val nonce = db.genKey()
                 val cookies = mutableMapOf<String, String>()
                 runCatching { getSession(ctx).remove() }
@@ -149,12 +196,20 @@ suspend fun main(args: Array<String>) = coroutineScope {
                         isSecure = true
                     })
 
-                ctx.sendRedirect(auth.redir(makeSes.state, nonce))
+                return makeSes to nonce
+            }
+
+            post("/login") {
+                initLogin().let { (makeSes, nonce) ->
+                    ctx.sendRedirect(auth.redir(makeSes.state, nonce))
+                }
             }
 
             if (isDev) get("/testauth") {
-                val ses = getSession(ctx)
-                ses.withEmail(ctx.query("email").value(), "Test User")
+                //uh i didnt design for this lmfao
+                val ses = initLogin().first
+                db.auth(ses.id, ses.key)
+                    .withEmail(ctx.query("email").value(), "Test User")
                 ctx.sendRedirect("/register")
             }
 
@@ -193,7 +248,8 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 ctx.sendRedirect("/")
             }
 
-            fun wrap(proceed: Boolean=false, f: suspend HandlerContext.(DB.SessionDB) -> String?): suspend HandlerContext.() -> Any = lambda@{
+            fun wrap(proceed: Boolean=false, f: suspend HandlerContext.(DB.SessionDB) -> String?)
+            : suspend HandlerContext.() -> Any = lambda@{
                 val ses = getSession(ctx)
 
                 if (ses.isClosed()) {
@@ -233,7 +289,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 "Unsubmitted"
             })
 
-            post("/join", wrap { ses ->
+            post("/join", wrap() { ses ->
                 ses.joinTeam(ctx.form("teamCode").value())
                 "Joined"
             })
@@ -243,13 +299,13 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 "Left team"
             })
 
-            post("/changename", wrap { ses ->
+            post("/changename", wrap() { ses ->
                 ses.setTeamName(ctx.form("name").value())
                 "Team name changed"
             })
 
             path("/game") {
-                suspend fun renderGame(team: Team?, tid: String?) =
+                suspend fun renderGame(team: Team?, tid: Int?) =
                     ModelAndView("game.kte", mapOf(
                         "team" to team, "teamName" to tid?.let {db.getTeamName(it)},
                         "verdict" to team?.verdict(),
@@ -258,7 +314,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
 
                 get("/") {
                     val tid = getTeamId(ctx)
-                    renderGame(tid?.let {teamIdLock.withLock { teamId[it] }}, tid)
+                    renderGame(tid?.let {game.lock.withLock { game.teams[it]?.t }}, tid)
                 }
 
                 post("/submit") {
@@ -268,15 +324,14 @@ suspend fun main(args: Array<String>) = coroutineScope {
                         ?: WebErrorType.BadRequest.err("Invalid language")
                     val code = ctx.form("code").value()
 
-                    val newt = game.addTeam(lang,code,isDev,isolateArgs)
-                    teamIdLock.withLock { teamId.put(t, newt) }?.let {game.removeTeam(it)}
+                    val newt = game.addTeam(t, lang,code,isDev,isolateArgs)
                     renderGame(newt, t)
                 }
 
                 post("/unsubmit") {
                     val t = getTeamIdAssert(ctx)
 
-                    when (val x=teamIdLock.withLock { teamId.remove(t) }) {
+                    when (val x = game.lock.withLock { game.teams[t]?.t }) {
                         null -> WebErrorType.NotFound.err("Your team hasn't submitted anything")
                         else -> {
                             game.removeTeam(x)
@@ -285,27 +340,19 @@ suspend fun main(args: Array<String>) = coroutineScope {
                     }
                 }
 
-                ws("/ws") {
-                    configurer.onConnect {
-                        runBlocking {
-                            listenersLock.withLock { listeners.add(it) }
-                        }
+                ws("/ws", wsInit(gameListeners) {
+                    Json.encodeToString(getLeaderboard())
+                })
+            }
 
-                        launch {
-                            Json.encodeToString(getLeaderboard()).let { s->
-                                launch(Dispatchers.IO) { it.send(s) }
-                            }
-                        }
-                    }
+            path("/scoreboard") {
+                assets("/", Path.of(dir, "scoreboard/dist/index.html"))
+                mountDir("scoreboard/dist")
 
-                    configurer.onClose { ws, _ ->
-                        runBlocking {
-                            listenersLock.withLock {
-                                listeners.remove(ws)
-                            }
-                        }
-                    }
-                }
+                ws("/ws", wsInit(scoreboardListeners) {
+                    if (!db.inProgress()) getSession(ctx).checkAdmin()
+                    Json.encodeToString(scoreboard.initData())
+                })
             }
 
             path("/dashboard") {
@@ -317,28 +364,43 @@ suspend fun main(args: Array<String>) = coroutineScope {
                     ))
                 }
 
-                fun prop(name: String, value: String): suspend HandlerContext.() -> Any = {
+                post("/clear") {
                     getSession(ctx, true)
-                    db.setProp(name,value)
+                    scoreboard.clear()
                     ctx.sendRedirect("/dashboard")
                 }
 
-                post("/close", prop("closed", "true"))
-                post("/open", prop("closed", "false"))
-                post("/lock", prop("inProgress", "true"))
-                post("/unlock", prop("inProgress", "false"))
+                post("/props") {
+                    getSession(ctx, true)
+
+                    db.setProps(listOf("locked", "inProgress", "closed").associateWith {
+                        if (ctx.form(it).valueOrNull()=="on") "true" else "false"
+                    } + (ctx.form("scoreboard").valueOrNull()
+                        ?.let {
+                            if (it.isEmpty()) null else {
+                                runCatching {Json.decodeFromString<ScoreboardConfig>(it) }
+                                    .getOrElse { ex->
+                                        WebErrorType.BadRequest.err("Malformed scoreboard config: ${ex.message}")
+                                    }
+
+                                mapOf("scoreboard" to it)
+                            }
+                        } ?: mapOf()))
+
+                    ctx.sendRedirect("/dashboard")
+                }
 
                 fun setTeam(act: TeamAction): suspend HandlerContext.() -> Any = {
                     getSession(ctx, true)
                     val teams = ctx.form("teams").value().trim()
-                        .split("\n").map {it.trim()}
+                        .split("\n").map {it.trim().toInt()}
 
                     when (act) {
                         TeamAction.Accept -> db.setTeamsAccepted(teams, true)
                         TeamAction.Reject -> db.setTeamsAccepted(teams, false)
                         TeamAction.RemoveFromGame -> {
                             for (t in teams){
-                                teamIdLock.withLock { teamId.remove(t) }?.let {
+                                game.lock.withLock { game.teams[t]?.t }?.let {
                                     game.removeTeam(it)
                                 }
                             }
@@ -356,6 +418,16 @@ suspend fun main(args: Array<String>) = coroutineScope {
                     getSession(ctx, true)
                     game.changes.send(RunGame)
                     ctx.sendRedirect("/dashboard")
+                }
+
+                get("/users") {
+                    getSession(ctx, true)
+                    FileDownload(FileDownload.Mode.INLINE, Json.encodeToString(db.getUsers()).byteInputStream(), "users.json")
+                }
+
+                get("/teams") {
+                    getSession(ctx, true)
+                    FileDownload(FileDownload.Mode.INLINE, Json.encodeToString(db.getTeams()).byteInputStream(), "teams.json")
                 }
             }
         }
