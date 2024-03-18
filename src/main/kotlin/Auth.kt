@@ -42,7 +42,7 @@ class Auth(val root: String, val clientId: String, val clientSecret: String, val
                 WebErrorType.BadEmail.err("Invalid email -- please login to Microsoft with your Purdue email address.")
 
             ses.withEmail(res.account().username(),
-                runCatching {claims.getStringClaim("name")}.getOrNull())
+                runCatching {claims.getStringClaim("name")}.getOrNull()?.toName())
         } catch(e: Exception) {
             ses.remove()
             throw e

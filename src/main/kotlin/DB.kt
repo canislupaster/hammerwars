@@ -157,6 +157,8 @@ fun String.checkName() {
         WebErrorType.FormError.err("Your name and team name should be between 1 and $NAME_LEN characters long and only contain letters, numbers, and spaces")
 }
 
+fun String.toName() = filter { it.isLetterOrDigit() || it==' ' }.take(NAME_LEN).ifEmpty { null }
+
 @Serializable
 data class UserData(
     val name: String?,
