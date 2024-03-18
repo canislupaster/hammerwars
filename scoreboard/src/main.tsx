@@ -46,17 +46,113 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 		problems: [
 			{id: "A", pts: 500, url: "a.com"},
 			{id: "B", pts: 900, url: ""},
+			{id: "C", pts: 900, url: ""},
+			{id: "D", pts: 900, url: ""},
+			{id: "E", pts: 900, url: ""},
+			{id: "F", pts: 900, url: ""},
+			{id: "G", pts: 900, url: ""},
+			{id: "H", pts: 900, url: ""},
+			{id: "I", pts: 900, url: ""},
+			{id: "J", pts: 900, url: ""},
+			{id: "K", pts: 900, url: ""},
+			{id: "L", pts: 900, url: ""},
+			{id: "M", pts: 900, url: ""},
 			{id: "Game", pts: null, url: ""}
 		],
 		submissions: [
 			{
 				teamId: 1,
 				teamName: "Team B",
-				pts: 0,
+				pts: 394,
 				problem: "B",
 				fullSolve: false,
-				stat: {time: minutes(2), fastest: false, order: 0, numSub: 1}
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
 			},
+			{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "C",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},
+			{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "D",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "E",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "F",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "G",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "H",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "I",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "J",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "K",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "L",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},{
+				teamId: 1,
+				teamName: "Team B",
+				pts: 394,
+				problem: "M",
+				fullSolve: true,
+				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
+			},
+
+
+
+
+
+
 		],
 		startTime: "2024-03-16T14:38:19.603Z",
 		endTime: "2024-03-16T23:38:19.000Z",
@@ -77,7 +173,7 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 	// 	pts: 0,
 	// 	problem: "A",
 	// 	fullSolve: false,
-	// 	stat: {time: minutes(5), fastest: false, order: 1, numSub: 1},
+	// 	stat: {time: minutes(5), fastest: false, order: 1, numSub: 10},
 	// 	t: 5
 	// },
 	// {
@@ -95,7 +191,7 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 	// 	pts: 500,
 	// 	problem: "A",
 	// 	fullSolve: true,
-	// 	stat: {time: minutes(10), fastest: true, order: 1, numSub: 1},
+	// 	stat: {time: minutes(10), fastest: true, order: 1, numSub: 10},
 	// 	t: 10
 	// },
 	// {
@@ -104,10 +200,10 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 	// 	pts: 990,
 	// 	problem: "B",
 	// 	fullSolve: true,
-	// 	stat: {time: minutes(15), fastest: true, order: 0, numSub: 1},
+	// 	stat: {time: minutes(15), fastest: true, order: 0, numSub: 10},
 	// 	t: 15
 	// },
-	// ...genMsg
+	,...genMsg
 ];
 
 const isTest=false;
@@ -195,7 +291,7 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 		console.log("starting anim");
 		console.log(eventRef.current!!.animate([
 			{opacity: 0}, {opacity: 1}
-		], {duration: 500, easing: "ease-in-out"}));
+		], {duration: 500, easing: "ease-in-out", fill: "forwards"}));
 
 		const timeout = setTimeout(() => {
 			const anim = eventRef.current!!.animate([
@@ -267,7 +363,7 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 			seed: {type: "1f", value: (loadTime/1000.0)%5000.0}
 		}} ></ShadertoyReact>
 
-		<table className="teams" >
+	<div id="teamcontainer" ><table className="teams" >
 			<thead>
 				<tr className="head" >
 					<td>Team name</td>
@@ -290,7 +386,7 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 					</tr>
 				})}
 			</tbody>
-		</table>
+		</table></div>
 	</>;
 }
 

@@ -7,7 +7,7 @@ const defaultMsgs =
     ... but it might help ;)
     This year, we'll throw some unconventional challenges into the mix
     in addition to your standard epic Codeforces contest
-    @ LILY, Apr. 7, 2-7 PM. 1-3 per team.
+    @ LILY, Apr. 7, 1-7 PM. 1-3 per team.
     by the <a href="https://purduecpu.github.io/" ><b>Competitive Programming Union</b></a>.`
         .split("\n").map((x,i) =>
             ({type: "server", style: i%2==0 ? "big" : "normal", content: x.trim()}));
