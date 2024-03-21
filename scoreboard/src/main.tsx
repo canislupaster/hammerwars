@@ -166,47 +166,47 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 		fullSolve: true,
 		stat: {time: minutes(5), fastest: true, order: 0, numSub: 0},
 		t: 3
+	},
+	{
+		teamId: 0,
+		teamName: "Team A",
+		pts: 0,
+		problem: "A",
+		fullSolve: false,
+		stat: {time: minutes(5), fastest: false, order: 1, numSub: 10},
+		t: 5
+	},
+	{
+		teamId: 1,
+		teamName: "Team B",
+		pts: 500,
+		problem: "A",
+		fullSolve: true,
+		stat: {time: minutes(10), fastest: false, order: 0, numSub: 0},
+		t: 10
+	},
+	{
+		teamId: 0,
+		teamName: "Team A",
+		pts: 500,
+		problem: "A",
+		fullSolve: true,
+		stat: {time: minutes(10), fastest: true, order: 1, numSub: 10},
+		t: 10
+	},
+	{
+		teamId: 1,
+		teamName: "Team B again",
+		pts: 990,
+		problem: "B",
+		fullSolve: true,
+		stat: {time: minutes(15), fastest: true, order: 0, numSub: 10},
+		t: 15
 	}
-	// {
-	// 	teamId: 0,
-	// 	teamName: "Team A",
-	// 	pts: 0,
-	// 	problem: "A",
-	// 	fullSolve: false,
-	// 	stat: {time: minutes(5), fastest: false, order: 1, numSub: 10},
-	// 	t: 5
-	// },
-	// {
-	// 	teamId: 1,
-	// 	teamName: "Team B",
-	// 	pts: 500,
-	// 	problem: "A",
-	// 	fullSolve: true,
-	// 	stat: {time: minutes(10), fastest: false, order: 0, numSub: 0},
-	// 	t: 10
-	// },
-	// {
-	// 	teamId: 0,
-	// 	teamName: "Team A",
-	// 	pts: 500,
-	// 	problem: "A",
-	// 	fullSolve: true,
-	// 	stat: {time: minutes(10), fastest: true, order: 1, numSub: 10},
-	// 	t: 10
-	// },
-	// {
-	// 	teamId: 1,
-	// 	teamName: "Team B again",
-	// 	pts: 990,
-	// 	problem: "B",
-	// 	fullSolve: true,
-	// 	stat: {time: minutes(15), fastest: true, order: 0, numSub: 10},
-	// 	t: 15
-	// },
 	,...genMsg
 ];
 
-const isTest=false;
+const isTest=true;
 
 type Event = {
 	bonus: "fastest" | "first" | null,
@@ -214,7 +214,8 @@ type Event = {
 	pts: number,
 	upsolve: boolean,
 	team: string,
-	gif: string
+	gif: string,
+	oldTeams: Record<number, Team>
 };
 
 function useTimeUntil(when: string) {
@@ -276,7 +277,7 @@ function Solve({sub,problem,init}: {sub?: Submission, problem: Problem, init: In
 	</td>;
 }
 
-function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Init, events: Event[]}) {
+function Scoreboard({teams: curTeams,init,events}: {teams: Record<number, Team>, init: Init, events: Event[]}) {
 	const untilStart = useTimeUntil(init.startTime);
 	const untilEnd = useTimeUntil(init.endTime);
 
@@ -306,9 +307,6 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 		return () => window.clearTimeout(timeout);
 	}, [eventI, eventI==events.length]);
 
-	const teamsSorted = useMemo(() =>
-		Object.entries(teams).sort((a,b) => b[1].pts-a[1].pts), [teams]);
-
 	const [parent] = useAutoAnimate((el, action, oldCoords, newCoords) => {
 		let keyframes: Keyframe[]=[];
 
@@ -335,6 +333,11 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 
 	const loadTime = useMemo(() => Date.now(), []);
 	const cur: Event|null = eventI>=events.length ? null : events[eventI];
+	//update scoreboard after modal disappears...
+	const teams = cur==null ? curTeams : cur.oldTeams;
+
+	const teamsSorted = useMemo(() =>
+		Object.entries(teams).sort((a,b) => b[1].pts-a[1].pts), [teams]);
 
 	if (untilStart!=null) return <p>
 		Contest starts in {formatDur(untilStart)}
@@ -350,7 +353,7 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 				<p><b>{cur.team}</b> {cur.upsolve ? "up" : ""}solved <b>{cur.problem}</b> for <b>{ptsStr(cur.pts)}</b> points</p>
 
 				<iframe frameborder={0} allowTransparency={true} scrolling="no"
-					src={`https://tenor.com/embed/${cur.gif}`} />
+					src={`https://tenor.com/embed/${cur.gif}`} class="gif" />
 			</div>
 		</div> : <></>}
 
@@ -390,6 +393,7 @@ function Scoreboard({teams,init,events}: {teams: Record<number, Team>, init: Ini
 	</>;
 }
 
+//um in case i want stupid regex again just <.+data-postid="(\d+)".+
 const gifIds: string[] = (gifs as string).trim().split("\n");
 
 console.log(gifIds);
@@ -421,7 +425,8 @@ function App() {
 							problem: subData.problem,
 							gif: gifIds[Math.floor(Math.random()*gifIds.length)],
 							pts: subData.pts,
-							upsolve: psub!=undefined && psub.fullSolve
+							upsolve: psub!=undefined && psub.fullSolve,
+							oldTeams: x
 						}]);
 				}
 			}

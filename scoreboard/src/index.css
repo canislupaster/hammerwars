@@ -121,8 +121,9 @@ td.fast {
   max-height: 300px;
 }
 
-#event img {
+#event .gif {
   height: 500px;
+  width: 100%;
 }
 
 .container {

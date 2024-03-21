@@ -278,29 +278,30 @@ suspend fun main(args: Array<String>) = coroutineScope {
             })
 
             post("/save", wrap(proceed=true) { ses ->
-                val dat = dataFromForm(ctx.formMap())
-                ses.setData(dat)
+                ses.setData(dataFromForm(ctx.formMap()))
                 "Saved"
             })
 
             post("/unsubmit", wrap(proceed=true) { ses ->
-                val dat = dataFromForm(ctx.formMap())
-                ses.setData(dat, unsubmit=true)
+                ses.setData(dataFromForm(ctx.formMap()), unsubmit=true)
                 "Unsubmitted"
             })
 
-            post("/join", wrap() { ses ->
+            post("/join", wrap { ses ->
+                ses.setData(dataFromForm(ctx.formMap()))
                 ses.joinTeam(ctx.form("teamCode").value())
                 "Joined"
             })
 
             post("/leave", wrap(proceed=true) { ses ->
+                ses.setData(dataFromForm(ctx.formMap()))
                 ses.leaveTeam()
                 "Left team"
             })
 
-            post("/changename", wrap() { ses ->
-                ses.setTeamName(ctx.form("name").value())
+            post("/changename", wrap { ses ->
+                ses.setData(dataFromForm(ctx.formMap()))
+                ses.setTeamName(ctx.form("teamName").value())
                 "Team name changed"
             })
 

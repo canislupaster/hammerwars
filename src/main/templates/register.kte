@@ -157,43 +157,40 @@
                 <button class="btn main" id="submitButton" formaction="/register" ><h2>Register</h2></button>
             @endif
         </div>
-    </form>
+        <div class="section center bg" >
+            <p>Hit save to remember your progress and register to submit (you can unsubmit later).</p>
+            <p><b>Please remember to submit your registration!</b></p>
+        </div>
 
-    <div class="section center" >
-        <h1>Team</h1>
-    </div>
+        <div class="section center" >
+            <h1>Team</h1>
+        </div>
 
-    <div class="section" >
-        <div class="container" >
-            <form action="/leave" method="POST" >
+        <div class="section" >
+            <div class="container" >
                 <p>Your join code is <span class="code" >${teamCode}</span>. Send this to others to have them join your team!</p>
                 @if (teamWith.isNotEmpty())
                 <p>You're in a team with <b>${teamWith.joinToString(", ")}</b>.
                     <button class="link" formaction="/leave" >Leave team?</button></p>
                 @endif
-            </form>
 
-            <form action="/changename" method="POST" >
                 <b>Saving or submitting your user data does not modify your team name. Even if you go solo, you should still customize this :)</b>
                 <div class="group" >
-                    <label for="name" >Team name</label>
-                    <input name="name" maxlength="30" minlength="1" pattern="[A-z0-9 ]+" value="${teamName}" />
+                    <label for="teamName" >Team name</label>
+                    <input name="teamName" maxlength="30" minlength="1" pattern="[A-z0-9 ]+" value="${teamName}" />
                     <p>Letters, numbers, and spaces only please</p>
-                    <button class="btn" >Change team name</button>
+                    <button class="btn" formaction="/changename" >Change team name</button>
                 </div>
-            </form>
 
-            <form action="/join" method="POST" >
                 <b>Join someone else's team here:</b>
                 <div class="group" >
                     <label for="teamCode" >Join code</label>
                     <input name="teamCode" />
-                    <button class="btn" >Join team</button>
+                    <button class="btn" formaction="/join" >Join team</button>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
-    `,
+    </form>`,
     head=@`
         <script>
             let data = [${gridJson(data.drawing)}];

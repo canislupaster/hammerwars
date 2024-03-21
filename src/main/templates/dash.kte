@@ -10,7 +10,7 @@
     <div class="section" >
         <div class="container" >
             <form method="POST" style="display: inline" >
-                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"}, ${if (dash.locked) "LOCKED" else "UNLOCKED"}. Contest ${if (dash.inProgress) "IN PROGRESS" else "IDLE"}
+                <p>Submissions are ${if(dash.closed) "CLOSED" else "OPEN"}, ${if (dash.locked) "LOCKED" else "UNLOCKED"}. Contest ${if (dash.inProgress) "IN PROGRESS" else "IDLE"}.
 
                 There are ${dash.numSubmissions}/${dash.maxSubmissions} completed submissions (${dash.users.size} saved).
 
