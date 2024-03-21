@@ -15,14 +15,14 @@
     <title>${title}</title>
     <link rel="icon" href="/favicon.png" type="image/png">
 
-    <meta name="description" content="HammerWars is a competitive programming contest at Purdue which will be hosted by the Competitive Programming Union for its third year.">
-    <meta name="author" content="Purdue Competitive Programming Union" >
+    <meta name="description" content="HammerWars is a competitive programming contest at Purdue which will be hosted by the Competitive Programmers Union for its third year.">
+    <meta name="author" content="Purdue Competitive Programmers Union" >
 
     <meta property="og:title" content="${title}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://hammerwars.win/" />
     <meta property="og:image" content="https://hammerwars.win/circlelogo.png" />
-    <meta property="og:description" content="HammerWars is a competitive programming contest at Purdue which will be hosted by the Competitive Programming Union for its third year." />
+    <meta property="og:description" content="HammerWars is a competitive programming contest at Purdue which will be hosted by the Competitive Programmers Union for its third year." />
     <meta property="og:site_name" content="HammerWars" />
     <meta property="og:locale" content="en_US" />
 
@@ -63,7 +63,7 @@
         <div class="section" ><div class="container center" >
             <i><h2>Proudly hosted by the</h2></i>
             <a class="nostyle cpu" href="https://purduecpu.github.io/" >
-                competitive programming union
+                competitive programmers union
             </a>
         </div></div>
     @endif

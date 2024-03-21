@@ -1,6 +1,8 @@
 #!/bin/sh
 
 # create logrotate configuration that limits size and directory in /var
+# only execute if logrotate configuration does not exist
+if [ ! -f /etc/logrotate.d/hammerwars ]; then
 sudo -s -- <<EOF
 touch /etc/logrotate.d/hammerwars
 echo "/var/log/hammerwars/*.log {
@@ -11,6 +13,7 @@ mkdir -p /var/log/hammerwars
 chown -R $USER:$USER /var/log/hammerwars
 chmod -R u+rw /var/log/hammerwars
 EOF
+fi
 #build
 ./gradlew installDist --no-daemon
 # kill any existing screen
