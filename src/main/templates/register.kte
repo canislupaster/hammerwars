@@ -204,6 +204,8 @@
             const n=data.length, m=data[0].length;
 
             window.addEventListener("DOMContentLoaded", () => {
+                window.history.pushState(null, document.title, "/register");
+
                 for (const el of document.getElementsByTagName("input")) {
                     if (el.maxLength!=undefined) {
                         const p = document.getElementById(el.name+"-count");
