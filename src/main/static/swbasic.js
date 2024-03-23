@@ -1145,9 +1145,9 @@ function Parser(text)
 
 			const t = this.tokenizer.tokens[this.tokenizer.current_token];
 			if (t!==undefined && t.getType()==="NUMBER") {
-				this.processLine(parseInt(t.getText()));
+				this.processLine(parseInt(this.tokenizer.nextToken()));
 			} else {
-                this.processLine(this.lines.reduce((x,y) => Math.max(x, y.linenumber), 0) + 1);
+				this.processLine(this.lines.reduce((x,y) => Math.max(x, y.linenumber), 0) + 1);
 			}
 
 			this.accept("ENDOFLINE");
