@@ -27,7 +27,6 @@ group = "win.hammerwars"
 version = "1.0-SNAPSHOT"
 
 dependencies {
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
     implementation("gg.jte:jte-kotlin:3.1.9")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
@@ -48,7 +47,10 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
     implementation("org.xerial:sqlite-jdbc:3.45.0.0")
 
-    implementation("com.github.kittinunf.fuel:fuel:3.0.0-alpha1")
+    implementation("io.ktor:ktor-client-core:2.3.9")
+    implementation("io.ktor:ktor-client-cio:2.3.9")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.9")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.9")
 }
 
 kotlin {

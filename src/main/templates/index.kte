@@ -7,7 +7,8 @@
 
 @template.main(
     title="HammerWars 3",
-    body=@`<div class="center bg" style="flex-direction: row; overflow: hidden; padding: 15px" >
+    body=@`<div class="center bg" style="padding: 15px; align-items: stretch" >
+        <div class="center" style="flex-direction: row; overflow: hidden" >
         @if (loggedIn)
             <h1><a class="btn" href="/register" >Edit registration</a></h1>
         @elseif (!open)
@@ -17,9 +18,15 @@
         @else
             <img src="/arrows.svg" class="arrow" />
             <form action="/login" method="post" class="arrow-center" >
-                <h1><input type="submit" class="btn" style="flex-shrink: 0" value="Sign up now" /></h1>
+                <button class="btn" style="flex-shrink: 0" ><h1>Sign up now</h1></button>
             </form>
             <img src="/arrows.svg" style="transform: scaleX(-1)" class="arrow" />
+        @endif
+        </div>
+        @if (!loggedIn && open)
+            <form action="/logindiscord" method="post" class="center" >
+                <p><i>No Purdue email but wish to attend <b>in person?</b> Sign up <button class="link" ><b>with Discord.</b></button></i></p>
+            </form>
         @endif
     </div>
 

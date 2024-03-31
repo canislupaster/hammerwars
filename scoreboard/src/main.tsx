@@ -147,14 +147,9 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 				fullSolve: true,
 				stat: {time: minutes(2), fastest: false, order: 0, numSub: 10}
 			},
-
-
-
-
-
-
 		],
 		startTime: "2024-03-16T14:38:19.603Z",
+		freezeTime: "2024-03-16T14:38:19.603Z",
 		endTime: "2024-03-16T23:38:19.000Z",
 		t: 1
 	},
@@ -206,7 +201,7 @@ const testMsgs: ((SubmissionData|(Init&{submissions: SubmissionData[]}))&{t: num
 	,...genMsg
 ];
 
-const isTest=true;
+const isTest=false;
 
 type Event = {
 	bonus: "fastest" | "first" | null,
@@ -243,7 +238,10 @@ function formatDur(t: number) {
 	return `${Math.floor(t/3600)} h ${Math.floor((t%3600)/60)} m ${t%60} s`;
 }
 
-type Init = {problems: Problem[], startTime: string, endTime: string};
+type Init = {
+	problems: Problem[], startTime: string,
+	endTime: string, freezeTime: string|null
+};
 
 //maybe smarter later
 const ptsStr = (x: number) => x.toFixed(2);
@@ -280,6 +278,7 @@ function Solve({sub,problem,init}: {sub?: Submission, problem: Problem, init: In
 function Scoreboard({teams: curTeams,init,events}: {teams: Record<number, Team>, init: Init, events: Event[]}) {
 	const untilStart = useTimeUntil(init.startTime);
 	const untilEnd = useTimeUntil(init.endTime);
+	const untilFreeze = init.freezeTime==null ? Infinity : useTimeUntil(init.freezeTime);
 
 	const [eventI, setEventI] = useState(0);
 	const [eventStart, setEvStart] = useState(0);
@@ -357,7 +356,12 @@ function Scoreboard({teams: curTeams,init,events}: {teams: Record<number, Team>,
 			</div>
 		</div> : <></>}
 
-		<p class="status" >{untilEnd!=null ? `Contest ends in ${formatDur(untilEnd)}` : `Contest has ended`}</p>
+		<div class="status" >
+			<p>{untilEnd!=null ? `Contest ends in ${formatDur(untilEnd)}` : `Contest has ended`}</p>
+			{untilFreeze==null ? <p><i>
+				Standings are frozen.
+			</i></p> : <></>}
+		</div>
 
 		<ShadertoyReact style={{
 			width: "100vw", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: -1
@@ -457,6 +461,7 @@ function App() {
 			if (obj.hasOwnProperty("type") && obj.type=="error") {
 				setErr(obj.message);
 			} else if (obj.hasOwnProperty("problems")) {
+				setTeams({});
 				setInit(obj);
 				initRef=obj;
 				for (const sub of obj.submissions)

@@ -37,8 +37,11 @@
                 <button class="btn" ><h1>Update</h1></button>
             </form>
 
-            <form method="POST" action="/dashboard/clear" >
-                <button class="btn" ><h1>Clear submissions</h1></button>
+            <form method="POST" >
+                <div class="group" >
+                    <button class="btn" formaction="/dashboard/clear" ><h1>Clear submissions</h1></button>
+                    <button class="btn" formaction="/dashboard/unfreeze" ><h1>Unfreeze scoreboard</h1></button>
+                </div>
             </form>
         </div>
     </div>

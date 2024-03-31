@@ -10,6 +10,10 @@ import io.jooby.handler.AssetSource
 import io.jooby.jte.JteModule
 import io.jooby.kt.*
 import io.jooby.netty.NettyServer
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.coroutineScope
@@ -52,6 +56,11 @@ suspend fun main(args: Array<String>) = coroutineScope {
     val scoreboardListeners = mutableSetOf<WebSocket>()
     val listenersLock = Mutex()
 
+    val httpClient = HttpClient(CIO) {
+        expectSuccess = true
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys=true }) }
+    }
+
     runApp(args) {
         install(NettyServer())
 
@@ -69,11 +78,12 @@ suspend fun main(args: Array<String>) = coroutineScope {
 
         val db = DB(dir, environment)
 
-        val scoreboard = Scoreboard(db, game, environment, log)
+        val scoreboard = Scoreboard(db, game, environment, httpClient, log)
 
         val root = environment.getProperty("root")!!
-        val auth = Auth(root, environment.getProperty("msalClientId")!!,
-            environment.getProperty("msalClientSecret")!!, db)
+        val (p1,p2,p3,p4) = listOf("msalClientId", "msalClientSecret", "discordClientId", "discordClientSecret")
+            .map {environment.getProperty(it) ?: throw IllegalArgumentException("Missing $it")}
+        val auth = Auth(root,db,log,httpClient,p1,p2,p3,p4)
 
         val wsUrl =
             URI(if (isDev) "ws" else "wss", URI(root).authority,
@@ -171,7 +181,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
             }
 
             get("/") {
-                val loggedIn = runCatching { getSession(ctx) }.isSuccess
+                val loggedIn = runCatching { getSession(ctx).suid }.getOrNull()!=null
                 ModelAndView("index.kte", mapOf(
                     "loggedIn" to loggedIn,
                     "open" to db.hasOpened(),
@@ -179,12 +189,12 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 ))
             }
 
-            suspend fun HandlerContext.initLogin(): Pair<DB.MakeSession,String> {
+            suspend fun HandlerContext.initLogin(discord: Boolean): Pair<DB.MakeSession,String> {
                 val nonce = db.genKey()
                 val cookies = mutableMapOf<String, String>()
                 runCatching { getSession(ctx).remove() }
 
-                val makeSes = db.makeSession()
+                val makeSes = db.makeSession(discord)
 
                 cookies["SESSION"] = makeSes.id
                 cookies["TOKEN"] = makeSes.key
@@ -200,30 +210,46 @@ suspend fun main(args: Array<String>) = coroutineScope {
             }
 
             post("/login") {
-                initLogin().let { (makeSes, nonce) ->
+                initLogin(false).let { (makeSes, nonce) ->
                     ctx.sendRedirect(auth.redir(makeSes.state, nonce))
+                }
+            }
+
+            post("/logindiscord") {
+                initLogin(true).let { (makeSes, nonce) -> //ignore nonce :clown:
+                    ctx.sendRedirect(auth.redirDiscord(makeSes.state))
                 }
             }
 
             if (isDev) get("/testauth") {
                 //uh i didnt design for this lmfao
-                val ses = initLogin().first
+                val ses = initLogin(false).first
                 db.auth(ses.id, ses.key)
-                    .withEmail(ctx.query("email").value(), "Test User")
+                    .withEmail(ctx.query("email").value(), "Test User", null, null)
                 ctx.sendRedirect("/register")
             }
 
-            post("/auth") {
+            suspend fun HandlerContext.sescodestate(form: Boolean): Triple<DB.SessionDB, String, String> {
                 ctx.setResponseCookie(Cookie("NONCE", null))
 
                 val ses = getSession(ctx)
-
-                val data = ctx.formMap()
+                val data = if (form) ctx.formMap() else ctx.queryMap()
                 val code = data["code"] ?: WebErrorType.BadRequest.err("No code")
                 val state = data["state"] ?: WebErrorType.BadRequest.err("No state")
+                return Triple(ses, code, state)
+            }
+
+            post("/auth") {
+                val (ses,code,state) = sescodestate(true)
                 val nonce = ctx.cookieMap()["NONCE"] ?: WebErrorType.BadRequest.err("No nonce")
 
                 auth.auth(code, ses, nonce, state)
+                ctx.sendRedirect("/register")
+            }
+
+            get("/authdiscord") {
+                val (ses,code,state) = sescodestate(false)
+                auth.discordAuth(ses, code, state)
                 ctx.sendRedirect("/register")
             }
 
@@ -368,6 +394,13 @@ suspend fun main(args: Array<String>) = coroutineScope {
                 post("/clear") {
                     getSession(ctx, true)
                     scoreboard.clear()
+                    ctx.sendRedirect("/dashboard")
+                }
+
+                //basically the same thing...
+                post("/unfreeze") {
+                    getSession(ctx, true)
+                    scoreboard.unfreeze()
                     ctx.sendRedirect("/dashboard")
                 }
 

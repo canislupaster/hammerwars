@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 import java.io.*
 import java.nio.file.Files
 import java.time.Instant
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 enum class Language {
@@ -64,7 +65,7 @@ suspend fun Process.writeS(s: String) = withContext(Dispatchers.IO) {
     outputStream.flush()
 }
 
-const val READ_INTERVAL = 100L //ms
+const val READ_INTERVAL = 50L //ms
 const val OUTPUT_LIMIT = 5*1024
 
 suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
@@ -87,7 +88,7 @@ const val SIZE_LIMIT = 50*1024 // KB
 const val MEM_LIMIT = 64*1024 // KB
 const val CPU_TIME = 10 // s
 const val ROUND_TL = 200 // s
-const val INTERACT_TL = 1 // s
+const val INTERACT_TL = 0.4 // s
 const val COMPILE_TIME = 15 // s
 
 class Team(val lang: Language, val code: String, val id: Int, val path: String,
@@ -212,7 +213,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
             }
 
             p.writeS(s)
-            return cb(p.readS(INTERACT_TL*1000, "\n\n").trim())
+            return cb(p.readS((INTERACT_TL*1000.0).roundToInt(), "\n\n").trim())
         } catch (e: VerdictData) {
             setVerdict(checkMeta() ?: e)
         } catch (e: Exception) {

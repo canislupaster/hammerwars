@@ -1,13 +1,12 @@
 package win.hammerwars
 
-import fuel.Fuel
-import fuel.get
 import io.jooby.Environment
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import io.ktor.http.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -20,7 +19,7 @@ import java.time.Instant
 import kotlin.math.max
 
 const val SCOREBOARD_UPDATE_INTERVAL = 10L //s
-const val SCOREBOARD_UPDATE_COUNT = 15
+const val SCOREBOARD_UPDATE_COUNT = 50
 
 @Serializable
 data class ProblemConfig(val pts: Double)
@@ -29,7 +28,12 @@ data class ScoreboardConfig(val contestId: String, val problems: Map<String, Pro
                             val orderBonus: Double, val orderDecay: Double, val fastestBonus: Double,
                             val timePenalty: Double, val subPenalty: Double,
                             val gameProblemId: String, val gamePts: Double,
-                            val startTime: Long, val endTime: Long)
+                            @Serializable(with=InstantSerializer::class)
+                            val startTime: Instant,
+                            @Serializable(with=InstantSerializer::class)
+                            val endTime: Instant,
+                            @Serializable(with=InstantSerializer::class)
+                            val freezeTime: Instant?=null)
 
 //thanks chatgpt
 @Serializable
@@ -101,47 +105,65 @@ data class ScoreboardInit(val problems: List<ProblemData>,
                           val startTime: Instant,
                           @Serializable(with=InstantSerializer::class)
                           val endTime: Instant,
+                          @Serializable(with=InstantSerializer::class)
+                          val freezeTime: Instant?,
                           val submissions: List<SubmissionData>): ScoreboardMessage
 
-class Scoreboard(val db: DB, val game: Game, val env: Environment, val log: Logger) {
+class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: HttpClient, val log: Logger) {
     //code duplication is healthy
     val flow = MutableSharedFlow<ScoreboardMessage>()
     val mut = Mutex()
 
     val apiKey = env.getProperty("cfApiKey")!!
     val apiSecret = env.getProperty("cfApiSecret")!!
+    val contestUrl = env.getProperty("contestUrl")!!
     val root = env.getProperty("root")!!
 
     val rng = SecureRandom()
     val json = Json {ignoreUnknownKeys=true}
 
-    suspend fun req(contest: String, from: Int, count: Int?): ContestStatus {
-        val chars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
-        val rand = (1..6).map { chars[rng.nextInt(chars.size)] }.joinToString("")
+    suspend fun req(contest: String, batched: Boolean): Flow<Submission> = flow {
+        var idx = 1
+        do {
+            val chars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
+            val rand = (1..6).map { chars[rng.nextInt(chars.size)] }.joinToString("")
 
-        val params = listOf(
-            "contestId" to contest,
-            "from" to from.toString(),
-            "asManager" to "true",
-            "apiKey" to apiKey,
-            "time" to Instant.now().epochSecond.toString()
-        ) + (if (count==null) emptyList() else listOf("count" to count.toString()))
+            log.info("fetching submissions from $idx (batched: $batched)")
 
-        val qs = params.sortedWith { (k1, v1), (k2, v2) ->
-            k1.compareTo(k2).let { if (it == 0) v1.compareTo(v2) else it }
-        }.joinToString("&") {
-            (k,v) -> "$k=$v"
-        }
+            val params = listOf(
+                "contestId" to contest,
+                "from" to idx.toString(),
+                "asManager" to "true",
+                "apiKey" to apiKey,
+                "time" to Instant.now().epochSecond.toString()
+            ) + (if (batched) listOf("count" to SCOREBOARD_UPDATE_COUNT.toString()) else listOf())
 
-        val hash = MessageDigest.getInstance("SHA-512").run {
-            update("$rand/contest.status?$qs#$apiSecret".toByteArray())
-            digest()
-        }.joinToString("") { String.format("%02x", it) }
+            val qs = params.sortedWith { (k1, v1), (k2, v2) ->
+                k1.compareTo(k2).let { if (it == 0) v1.compareTo(v2) else it }
+            }.joinToString("&") {
+                (k,v) -> "$k=$v"
+            }
 
-        return json.decodeFromString<ContestStatus>(Fuel.get(
-            "https://codeforces.com/api/contest.status",
-            params + ("apiSig" to "$rand$hash")
-        ).body)
+            val hash = MessageDigest.getInstance("SHA-512").run {
+                update("$rand/contest.status?$qs#$apiSecret".toByteArray())
+                digest()
+            }.joinToString("") { String.format("%02x", it) }
+
+            val res = http.get("https://codeforces.com/api/contest.status") {
+                url {
+                    (params + ("apiSig" to "$rand$hash"))
+                        .forEach { (k,v) -> encodedParameters.append(k,v) }
+                }
+            }.body<ContestStatus>()
+
+            if (res.status!="OK" || res.comment!=null || res.result==null)
+                throw IOException("CF API error: ${res.comment ?: "no info"}")
+
+            if (res.result.isEmpty()) break
+            emitAll(res.result.asFlow())
+
+            idx += SCOREBOARD_UPDATE_COUNT
+        } while (currentCoroutineContext().isActive && batched)
     }
 
     suspend fun gameSubData(cfg: ScoreboardConfig) = game.lock.withLock {
@@ -158,58 +180,66 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val log: Logg
     }
 
     suspend fun initData(): ScoreboardInit = db.scoreboardConfig().let {cfg ->
-        if (Instant.now().epochSecond<cfg.startTime)
+        val now = Instant.now()
+        if (now<cfg.startTime)
             WebErrorType.BadRequest.err("Contest hasn't started")
 
         ScoreboardInit(
             cfg.problems.map { (id, c) ->
-                ProblemData(id, "https://codeforces.com/gym/${cfg.contestId}/problem/$id", c.pts)
+                ProblemData(id, "$contestUrl/${cfg.contestId}/problem/$id", c.pts)
             } + ProblemData(
                 cfg.gameProblemId, "${root}/game",null
-            ), Instant.ofEpochSecond(cfg.startTime), Instant.ofEpochSecond(cfg.endTime),
+            ), cfg.startTime, cfg.endTime, cfg.freezeTime,
             db.allBestSubmissions() + gameSubData(cfg)
         )
     }
 
-    suspend fun update(cfg: ScoreboardConfig, from: Int, count: Int?): List<SubmissionData> {
-        val res = req(cfg.contestId, from, count)
-
-        if (res.status!="OK" || res.comment!=null || res.result==null)
-            throw IOException("CF API error: ${res.comment ?: "no info"}")
-
-        return res.result.takeWhile { !db.submissionExists(it.id) }.reversed().flatMap {sub->
+    suspend fun update(cfg: ScoreboardConfig, batched: Boolean, unfreeze: Boolean=false): Flow<SubmissionData> =
+        req(cfg.contestId, batched).map {
+            it to Instant.ofEpochSecond(it.creationTimeSeconds)
+        }.takeWhile { (sub,time)->
+            db.checkSubmission(sub.id, time)
+        }.transform { (sub,time)->
             val prob = cfg.problems[sub.problem.index]
             if (prob==null) {
                 log.error("${sub.problem.index} not configured")
-                return@flatMap emptyList()
+                return@transform
             }
 
             if (sub.author.members.isEmpty()) {
                 log.error("submission ${sub.id} has no authors, skipping")
-                return@flatMap emptyList()
+                return@transform
             }
 
-            if (sub.creationTimeSeconds !in cfg.startTime..<cfg.endTime
+            if (time !in cfg.startTime..<cfg.endTime
+                || (!unfreeze && cfg.freezeTime!=null && time>=cfg.freezeTime)
                 || sub.verdict=="COMPILATION_ERROR")
-                return@flatMap emptyList()
+                return@transform
 
-            db.makeSubmission(sub.id, sub.author.members.first().handle,
+            emitAll(db.makeSubmission(sub.id, sub.author.members.first().handle,
                 sub.problem.index, sub.verdict=="OK",
-                Instant.ofEpochSecond(sub.creationTimeSeconds),
-                sub.timeConsumedMillis
+                time, sub.timeConsumedMillis
             ) { stat ->
                 var x = prob.pts - cfg.subPenalty * stat.numSub
-                x -= cfg.timePenalty * (stat.time.toEpochMilli() - cfg.startTime * 1000L).toDouble() / (1000.0 * 60)
+                x -= cfg.timePenalty * (stat.time.toEpochMilli() - cfg.startTime.toEpochMilli()).toDouble() / (1000.0 * 60)
                 if (stat.fastest) x += cfg.fastestBonus
                 x += max(0.0, cfg.orderBonus - cfg.orderDecay * stat.order)
                 x
-            }
+            }.asFlow())
         }
-    }
 
     suspend fun clear() = mut.withLock {
         db.clearSubmissions()
-        update(db.scoreboardConfig(), 1, null)
+        update(db.scoreboardConfig(), false).collect()
+        flow.emit(initData())
+    }
+
+    suspend fun unfreeze(): Unit = mut.withLock {
+        val cfg = db.scoreboardConfig()
+        if (cfg.freezeTime==null) return
+        db.uncheckSince(cfg.freezeTime)
+
+        update(cfg,false, unfreeze=true).collect()
         flow.emit(initData())
     }
 
@@ -230,13 +260,7 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val log: Logg
 
                     if (lastFetch==null || now >= lastFetch+SCOREBOARD_UPDATE_INTERVAL) {
                         lastFetch=now
-
-                        var idx = 1
-                        while (mut.withLock {update(cfg, idx, SCOREBOARD_UPDATE_COUNT).let {
-                            it.forEach {sd -> flow.emit(sd)}
-                            it.size == SCOREBOARD_UPDATE_COUNT
-                        }})
-                            idx += SCOREBOARD_UPDATE_COUNT
+                        mut.withLock { flow.emitAll(update(cfg, true)) }
                     }
 
                     delay(1000*(lastFetch+SCOREBOARD_UPDATE_INTERVAL-now))

@@ -16,7 +16,7 @@
 
             <i>
                 <p>Memory limit: 64 MB</p>
-                <p>Time limit: 10 s CPU time, 1 s per interaction</p>
+                <p>Time limit: 10 s CPU time, 0.4 s per interaction</p>
             </i>
             <hr/>
 

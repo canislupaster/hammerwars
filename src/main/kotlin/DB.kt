@@ -14,6 +14,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.javatime.timestamp
@@ -71,6 +72,14 @@ enum class WebErrorType {
 }
 
 open class WebError(val ty: WebErrorType, val msg: String?=null): Exception(msg ?: ty.message())
+
+enum class LoginWith {
+    Microsoft,Discord,Unknown
+}
+class LoginErr(
+    val with: LoginWith,
+    ty: WebErrorType, msg: String?=null
+): WebError(ty, msg)
 
 fun ByteArray.base64(): String = Base64.getEncoder().encodeToString(this)
 fun String.base64(): ByteArray = Base64.getDecoder().decode(this)
@@ -226,6 +235,8 @@ fun dataFromForm(form: Map<String, String>) =
 @Serializable
 data class UserInfo(
     val id: Int,
+    val discordId: String?,
+    val discordEmail: String?,
     val num: Int,
     val email: String,
     @Serializable(with=InstantSerializer::class)
@@ -279,7 +290,11 @@ class DB(dir: String, env: Environment) {
         val team: Column<Int> = integer("team").index().references(Team.id)
 
         val cfHandle: Column<String?> = text("cfHandle").uniqueIndex().nullable()
-        val email: Column<String> = text("email").uniqueIndex()
+        //um this is actually purdue email or discord username now...
+        val email: Column<String> = text("email")
+
+        val discordId: Column<String?> = text("discord").uniqueIndex().nullable()
+        val discordEmail: Column<String?> = text("discord_email").nullable()
 
         val savedData: Column<UserData> = json("saved_data", Json.Default)
         val data: Column<UserData?> = json<UserData>("data", Json.Default).nullable()
@@ -302,6 +317,8 @@ class DB(dir: String, env: Environment) {
 
         val key: Column<ExposedBlob> = blob("key")
 
+        val isDiscord: Column<Boolean> = bool("is_discord")
+
         val expires: Column<Instant> = timestamp("expires")
         val oauthExpires: Column<Instant> = timestamp("oauth_expires")
 
@@ -318,9 +335,7 @@ class DB(dir: String, env: Environment) {
 
     object Submission: Table(name="submission") {
         val cfId: Column<Int> = integer("cf_id")
-        //i dont even know why this is here?
-        val team: Column<Int> = integer("team").references(Team.id, onDelete=ReferenceOption.CASCADE)
-
+        val time: Column<Instant> = timestamp("time").index()
         override val primaryKey = PrimaryKey(cfId)
     }
 
@@ -351,7 +366,7 @@ class DB(dir: String, env: Environment) {
 
     data class MakeSession(val id: String, val key: String, val state: String)
 
-    suspend fun makeSession(): MakeSession {
+    suspend fun makeSession(loginDiscord: Boolean): MakeSession {
         val uid = genId()
         val ukey = genKey()
         val ukeyHash = hash(ukey)
@@ -359,6 +374,7 @@ class DB(dir: String, env: Environment) {
         query {
             Session.insert {
                 it[id] = uid
+                it[isDiscord] = loginDiscord
                 it[key] = ExposedBlob(ukeyHash)
                 it[expires] = Instant.now() + SESSION_EXPIRE
                 it[oauthExpires] = Instant.now() + OAUTH_EXPIRE
@@ -373,15 +389,15 @@ class DB(dir: String, env: Environment) {
             Session.selectAll()
                 .where { (Session.id eq id) and (Session.expires greaterEq Instant.now()) }
                 .singleOrNull()
-        } ?: WebErrorType.Unauthorized.err("Session expired")
+        } ?: throw LoginErr(LoginWith.Unknown, WebErrorType.Unauthorized,"Session expired.")
 
         val khash = hash(key)
         if (!MessageDigest.isEqual(hash(key), session[Session.key].bytes))
-            WebErrorType.Unauthorized.err("Invalid session key")
+            throw LoginErr(LoginWith.Unknown, WebErrorType.Unauthorized,"Invalid session key.")
 
          //should be ok to store state as string and do normal compare, etc
         return SessionDB(session[Session.id], session[Session.userId],
-            khash.base64(), session[Session.oauthExpires])
+            session[Session.isDiscord], khash.base64(), session[Session.oauthExpires])
     }
 
     // uhhh
@@ -406,7 +422,8 @@ class DB(dir: String, env: Environment) {
 
     private fun getUsersQ(): List<UserInfo> =
         User.selectAll().map {
-            UserInfo(it[User.id], it[User.num], it[User.email],
+            UserInfo(it[User.id], it[User.discordId], it[User.discordEmail],
+                it[User.num], it[User.email],
                 it[User.savedData].time, it[User.data],
                 it[User.team], it[User.accepted])
         }
@@ -444,25 +461,24 @@ class DB(dir: String, env: Environment) {
         Team.select(Team.name).where { Team.id eq id }.single()[Team.name]
     }
 
-    suspend fun submissionExists(cfId: Int) = query {
-        !Submission.select(Submission.cfId).where { Submission.cfId eq cfId }.empty()
+    suspend fun checkSubmission(cfId: Int, time: Instant) = query {
+        Submission.insertIgnore {
+            it[Submission.cfId] = cfId
+            it[Submission.time] = time
+        }.insertedCount>0
     }
 
     suspend fun makeSubmission(cfId: Int, cfHandle: String, problem: String,
                                fullSolve: Boolean, time: Instant,
                                runningTime: Int, score: (SubmissionStat) -> Double): List<SubmissionData> = query {
         val team = User.join(Team, JoinType.LEFT)
-            .select(User.team, Team.name, User.email).where {
+            .select(User.team, Team.name, User.email, User.discordId).where {
                 (User.cfHandle eq cfHandle) and (User.accepted eq true)
             }.singleOrNull()
 
-        if (team==null || (prop("inProgress")!="true" && !adminEmails.contains(team[User.email])))
+        if (team==null || (prop("inProgress")!="true"
+                    && (team[User.discordId]!=null || !adminEmails.contains(team[User.email]))))
             return@query emptyList()
-
-        Submission.upsert {
-            it[Submission.cfId] = cfId
-            it[Submission.team] = team[User.team]
-        }
 
         val (pstat,didAC) = TeamProblem.select(TeamProblem.stat, TeamProblem.cfIdAC).where {
             (TeamProblem.team eq team[User.team]) and (TeamProblem.problem eq problem)
@@ -545,18 +561,24 @@ class DB(dir: String, env: Environment) {
         TeamProblem.deleteAll()
     }
 
+    suspend fun uncheckSince(time: Instant) = query {
+        Submission.deleteWhere { Submission.time greaterEq time }
+    }
+
     data class SavedData(val saved: UserData, val submitted: UserData?,
                          val email: String, val teamCode: String, val teamName: String,
                          val teamWith: List<String>, val accepted: Boolean?)
 
-    inner class SessionDB(val sid: String, val suid: Int?,
+    inner class SessionDB(val sid: String, val suid: Int?, val isDiscord: Boolean,
                           val state: String, val oauthExpire: Instant) {
         private suspend fun email() =
-            User.select(User.email).where { User.id eq uid() }
-                .singleOrNull()?.get(User.email)
+            User.select(User.email, User.discordId).where { User.id eq uid() }
+                .singleOrNull()?.let {
+                    if (it[User.discordId]!=null) null else it[User.email]
+                }
 
         suspend fun checkAdmin() = query {
-            if (!adminEmails.contains(email()))
+            if (email()?.let {adminEmails.contains(it)} != true)
                 WebErrorType.Unauthorized.err("You aren't an administrator.")
         }
 
@@ -568,14 +590,24 @@ class DB(dir: String, env: Environment) {
             u[User.team]
         }
 
-        suspend fun withEmail(uEmail: String, name: String?): SessionDB = query {
+        private fun lerr(ty: WebErrorType, msg: String?=null): Nothing = throw LoginErr(
+            if (isDiscord) LoginWith.Discord else LoginWith.Microsoft, ty, msg
+        )
+
+        suspend fun withEmail(uEmail: String, name: String?, discordId: String?, discordEmail: String?): SessionDB = query {
+            if (isDiscord && discordId==null)
+                lerr(WebErrorType.BadRequest, "Discord ID required for Discord login")
+
             if (suid!=null)
-                WebErrorType.BadRequest.err("Session already has user. Please logout first!")
+                lerr(WebErrorType.BadRequest, "Session already has user. Please logout first!")
 
             if (Instant.now() > oauthExpire)
-                WebErrorType.Unauthorized.err("It's been too long since you tried logging in.")
+                lerr(WebErrorType.Unauthorized,"It's been too long since you tried logging in.")
 
-            val u = User.select(User.id).where { User.email eq uEmail }.singleOrNull()
+            val u = User.select(User.id).where {
+                if (discordId!=null) User.discordId eq discordId
+                else User.email eq uEmail
+            }.singleOrNull()
 
             val uid = if (u!=null) {
                 Session.deleteWhere { (userId eq u[User.id]) and (id neq sid) }
@@ -589,6 +621,8 @@ class DB(dir: String, env: Environment) {
 
                 User.insert {
                     it[email] = uEmail
+                    it[User.discordId] = discordId
+                    it[User.discordEmail] = discordEmail
                     it[num] = (User.select(num).maxOfOrNull { row -> row[num] } ?: 0) + 1
                     it[savedData] = UserData(name)
                     it[team] = tid
@@ -596,10 +630,10 @@ class DB(dir: String, env: Environment) {
             }
 
             Session.update({ Session.id eq sid }) { it[userId] = uid }
-            SessionDB(sid, uid, state, oauthExpire)
+            SessionDB(sid, uid, isDiscord, state, oauthExpire)
         }
 
-        private fun uid() = suid ?: WebErrorType.NoUser.err()
+        private fun uid() = suid ?: lerr(WebErrorType.NoUser)
         private fun tid() = User.select(User.team).where { User.id eq uid() }.single()[User.team]
 
         suspend fun setData(newData: UserData, submit: Boolean=false, unsubmit: Boolean=false) {
