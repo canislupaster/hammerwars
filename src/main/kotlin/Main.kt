@@ -92,7 +92,9 @@ suspend fun main(args: Array<String>) = coroutineScope {
         suspend fun getSession(ctx: Context, admin: Boolean=false): DB.SessionDB {
             val (a,b) = runCatching {
                 ctx.cookie("SESSION").value() to ctx.cookie("TOKEN").value()
-            }.getOrElse { WebErrorType.Unauthorized.err("No session cookie found") }
+            }.getOrElse {
+                throw LoginErr(LoginWith.Unknown, WebErrorType.Unauthorized, "No session cookie found.")
+            }
 
             val ses = db.auth(a,b)
             if (admin) ses.checkAdmin()
