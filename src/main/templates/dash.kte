@@ -69,6 +69,17 @@
                 <button formaction="/dashboard/removefromgame" class="btn" >Remove from game</button>
             </div>
         </div>
+    </form>
+
+    <form method="POST" action="/dashboard/loginas" >
+        <div class="section" >
+            <div class="container" >
+                <div class="group" >
+                    <label for="uid" >Login as...</label> <input name="uid" type="number" >
+                </div>
+                <button class="btn" >Login</button>
+            </div>
+        </div>
     </form>`,
     head=@`
     <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>

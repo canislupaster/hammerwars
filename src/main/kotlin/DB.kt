@@ -314,6 +314,7 @@ class DB(dir: String, env: Environment) {
     object Session: Table(name="session") {
         val id: Column<String> = text("id")
         val userId: Column<Int?> = integer("user_id").references(User.id, onDelete=ReferenceOption.SET_NULL).nullable()
+        val adminEmail: Column<String?> = text("admin_email").nullable()
 
         val key: Column<ExposedBlob> = blob("key")
 
@@ -397,7 +398,8 @@ class DB(dir: String, env: Environment) {
 
          //should be ok to store state as string and do normal compare, etc
         return SessionDB(session[Session.id], session[Session.userId],
-            session[Session.isDiscord], khash.base64(), session[Session.oauthExpires])
+            session[Session.isDiscord], khash.base64(), session[Session.oauthExpires],
+            session[Session.adminEmail])
     }
 
     // uhhh
@@ -570,7 +572,7 @@ class DB(dir: String, env: Environment) {
                          val teamWith: List<String>, val accepted: Boolean?)
 
     inner class SessionDB(val sid: String, val suid: Int?, val isDiscord: Boolean,
-                          val state: String, val oauthExpire: Instant) {
+                          val state: String, val oauthExpire: Instant, val adminEmail: String?) {
         private suspend fun email() =
             User.select(User.email, User.discordId).where { User.id eq uid() }
                 .singleOrNull()?.let {
@@ -578,7 +580,7 @@ class DB(dir: String, env: Environment) {
                 }
 
         suspend fun checkAdmin() = query {
-            if (email()?.let {adminEmails.contains(it)} != true)
+            if (adminEmail?.let {adminEmails.contains(it)} != true)
                 WebErrorType.Unauthorized.err("You aren't an administrator.")
         }
 
@@ -629,8 +631,19 @@ class DB(dir: String, env: Environment) {
                 }.resultedValues!!.first()[User.id]
             }
 
+            Session.update({ Session.id eq sid }) {
+                it[userId] = uid
+                if (discordId==null) it[adminEmail] = uEmail
+            }
+
+            SessionDB(sid, uid, isDiscord, state, oauthExpire,
+                if (discordId==null) uEmail else null)
+        }
+
+        suspend fun loginAs(uid: Int) = query {
+            if (User.select(User.email).where { User.id eq uid }.empty())
+                WebErrorType.NoUser.err("User not found")
             Session.update({ Session.id eq sid }) { it[userId] = uid }
-            SessionDB(sid, uid, isDiscord, state, oauthExpire)
         }
 
         private fun uid() = suid ?: lerr(WebErrorType.NoUser)

@@ -456,6 +456,12 @@ suspend fun main(args: Array<String>) = coroutineScope {
                     ctx.sendRedirect("/dashboard")
                 }
 
+                post("/loginas") {
+                    val ses = getSession(ctx, true)
+                    ses.loginAs(ctx.form("uid").value().toInt())
+                    ctx.sendRedirect("/dashboard")
+                }
+
                 get("/users") {
                     getSession(ctx, true)
                     FileDownload(FileDownload.Mode.INLINE, Json.encodeToString(db.getUsers()).byteInputStream(), "users.json")

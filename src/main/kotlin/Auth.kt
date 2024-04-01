@@ -91,13 +91,13 @@ class Auth(val root: String, val db: DB, val log: Logger, val http: HttpClient,
         }
 
         @Serializable
-        data class DiscordUser(val id: String, val username: String, val email: String?)
+        data class DiscordUser(val id: String, val username: String, val email: String?, val verified: Boolean?)
 
         val user = http.get("https://discord.com/api/v10/users/@me") {
             bearerAuth(tok)
         }.body<DiscordUser>()
 
-        ses.withEmail(user.username, null, user.id, user.email)
+        ses.withEmail(user.username, null, user.id, user.verified?.let {user.email})
     } catch(e: Exception) {
         ses.remove()
         throw LoginErr(LoginWith.Discord, WebErrorType.Other, "Error logging in with Discord")
