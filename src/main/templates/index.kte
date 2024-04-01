@@ -47,7 +47,7 @@
     </div>
 
     <div class="section center" >
-        <h1 style="font-size: 4rem" >THE GOODS</h1>
+        <h1 class="huge" >THE GOODS</h1>
         <p>If you're one of the top teams, you could get:</p>
     </div>
     <div class="gallery container pad" >
@@ -81,7 +81,34 @@
             <p>Everyone gets one to <a href="https://en.wikipedia.org/wiki/Rubber_duck_debugging" >debug</a>, so nobody has an unfair advantage.</p>
         </div>
     </div>
-    <div class="section bg" >
+    <div class="section center bg" >
+        <h1 class="huge" >SCHEDULE</h1>
+        <table class="schedule" >
+            <tr>
+                <td>Apr 6. 9 PM</td><td><b>Registrations close. Make sure you've submitted yours by then!</b></td>
+            </tr>
+            <tr>
+                <td>Apr 7. 12:45 PM</td><td>Check in at <b>LILY 1105</b> (the big lecture hall)</td>
+            </tr>
+            <tr>
+                <td>1:15 PM</td><td>Demonstration contest</td>
+            </tr>
+            <tr>
+                <td>2:00 PM</td><td>Main contest begins</td>
+            </tr>
+            <tr>
+                <td>6:00 PM</td><td>Contest ends, solutions released and pizza distributed</td>
+            </tr>
+            <tr>
+                <td>6:45 PM</td><td>Results and prize ceremony</td>
+            </tr>
+            <tr>
+                <td>7:00 PM</td><td>HammerWars 3 is over 😭</td>
+            </tr>
+        </table>
+        <p>Join the <a href="https://discord.gg/BvvaQnsax6" >Discord</a> for updates! We will also email everyone with more details before the contest.</p>
+    </div>
+    <div class="section" >
         <div class="container" >
             <h1>Last year,</h1>
             <p>
@@ -96,11 +123,6 @@
 
             <p>And this year, <s>we were abandoned by Purdue Hackers and we only have $800 in prizes</s> we want to improve the contest experience by fostering collaboration and creating better problems.</p>
         </div>
-    </div>
-    <div class="section center" >
-        <h1>More is coming</h1>
-        <p>Be on the lookout for a schedule and some other things. In the meantime, get in the <a href="https://discord.gg/BvvaQnsax6" >Discord</a>!</p>
-        <img src="/construction.svg" style="max-width: 200px; margin-top: 1rem" />
     </div>`,
     head=@`
         <script src="/swbasic.js" ></script>

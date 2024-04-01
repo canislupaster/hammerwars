@@ -19,16 +19,6 @@ img {
     margin-top: 2rem;
 }
 
-@media (min-width: 600px) {
-    .cpu {
-        font-size: 5.5em;
-    }
-
-    h1, h1 >input {
-        font-size: 2.4rem;
-    }
-}
-
 body {
     margin: 0;
     padding: 0;
@@ -402,4 +392,42 @@ textarea {
 
 .verdict:not(.ok) {
     color: #e11000;
+}
+
+.schedule {
+    border-spacing: 0 5px;
+}
+
+.schedule td:first-child {
+    text-align: right;
+    padding: 5px 5px 5px 12px;
+    background: #162136;
+    border-radius: 7px 0 0 7px;
+    color: white;
+    min-width: 70px;
+
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.schedule td:last-child {
+    padding-left: 17px;
+}
+
+.huge {
+    font-size: 4rem;
+}
+
+@media (min-width: 600px) {
+    .cpu {
+        font-size: 5.5em;
+    }
+
+    .schedule td:first-child {
+        font-size: 1.3rem;
+    }
+
+    h1, h1 >input {
+        font-size: 2.4rem;
+    }
 }
