@@ -152,10 +152,10 @@
         </div>
 
         <div class="section center bg" style="flex-direction:row; flex-wrap: wrap" >
-            <button class="btn" formaction="/save" ><h2>Save</h2></button>
             @if (err?.ty!=WebErrorType.RegistrationClosed)
                 <button class="btn main" id="submitButton" formaction="/register" ><h2>Register</h2></button>
             @endif
+            <button class="btn" formaction="/save" ><h2>Save</h2></button>
         </div>
         <div class="section center bg" >
             <p>Hit save to remember your progress and register to submit (you can unsubmit later).</p>
