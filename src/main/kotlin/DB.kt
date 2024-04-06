@@ -721,7 +721,7 @@ class DB(dir: String, env: Environment) {
             val acc = User.join(Team, JoinType.LEFT).select(User.accepted, Team.id, Team.code)
                 .where { Team.code eq code }.toList()
 
-            if (prop("inProgress")=="true" && acc.any { !it[User.accepted] })
+            if (prop("locked")=="true" && acc.any { !it[User.accepted] })
                 WebErrorType.BadRequest.err("Some people in this team haven't been accepted")
 
             val rec = acc.firstOrNull()
