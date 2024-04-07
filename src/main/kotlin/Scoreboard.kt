@@ -71,7 +71,7 @@ data class Submission(
     val problem: Problem,
     val author: Author,
     val programmingLanguage: String,
-    val verdict: String,
+    val verdict: String?,
     val testset: String,
     val passedTestCount: Int,
     val timeConsumedMillis: Int,
@@ -199,7 +199,9 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: Htt
         req(cfg.contestId, batched).map {
             it to Instant.ofEpochSecond(it.creationTimeSeconds)
         }.takeWhile { (sub,time)->
-            db.checkSubmission(sub.id, time)
+            sub.verdict=="TESTING" || db.checkSubmission(sub.id, time)
+        }.filterNot {
+            it.first.verdict=="TESTING"
         }.transform { (sub,time)->
             val prob = cfg.problems[sub.problem.index]
             if (prob==null) {
