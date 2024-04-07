@@ -195,29 +195,29 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: Htt
         )
     }
 
-    suspend fun update(cfg: ScoreboardConfig, batched: Boolean, unfreeze: Boolean=false): Flow<SubmissionData> =
+    suspend fun update(cfg: ScoreboardConfig, batched: Boolean, unfreeze: Boolean=false): Flow<SubmissionData> = flow {
         req(cfg.contestId, batched).map {
             it to Instant.ofEpochSecond(it.creationTimeSeconds)
         }.takeWhile { (sub,time)->
             sub.verdict=="TESTING" || db.checkSubmission(sub.id, time)
         }.filterNot {
             it.first.verdict=="TESTING"
-        }.transform { (sub,time)->
+        }.toList().reversed().forEach { (sub,time)->
             val prob = cfg.problems[sub.problem.index]
             if (prob==null) {
                 log.error("${sub.problem.index} not configured")
-                return@transform
+                return@forEach
             }
 
             if (sub.author.members.isEmpty()) {
                 log.error("submission ${sub.id} has no authors, skipping")
-                return@transform
+                return@forEach
             }
 
             if (time !in cfg.startTime..<cfg.endTime
                 || (!unfreeze && cfg.freezeTime!=null && time>=cfg.freezeTime)
                 || sub.verdict=="COMPILATION_ERROR")
-                return@transform
+                return@forEach
 
             emitAll(db.makeSubmission(sub.id, sub.author.members.first().handle,
                 sub.problem.index, sub.verdict=="OK",
@@ -232,6 +232,7 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: Htt
                 x
             }.asFlow())
         }
+    }
 
     suspend fun clear() = mut.withLock {
         db.clearSubmissions()
