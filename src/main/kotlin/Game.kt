@@ -86,6 +86,7 @@ suspend fun Process.readS(tl: Int?, end: String) = withContext(Dispatchers.IO) {
 
 const val SIZE_LIMIT = 50*1024 // KB
 const val MEM_LIMIT = 64*1024 // KB
+const val COMPILE_MEM = 300*1024 // s
 const val CPU_TIME = 10 // s
 const val ROUND_TL = 200 // s
 const val INTERACT_TL = 0.4 // s
@@ -135,13 +136,13 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
         }
     }
 
-    private fun runCmd(cmd: Array<String>, tl: Int?=null): Process =
+    private fun runCmd(cmd: Array<String>, tl: Int?=null, mem: Int?): Process =
         if (isolate) ProcessBuilder("isolate",
             "-b", id.toString(),
             "--time", CPU_TIME.toString(),
             "-p",
             "--cg",
-            "--cg-mem", MEM_LIMIT.toString(),
+            "--cg-mem", mem.toString(),
             "--meta", metaFile,
             "--tty-hack",
             "--silent",
@@ -180,12 +181,12 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
 
         val compileOut = when (lang) {
             Language.Java -> {
-                runCmd(arrayOf("/usr/bin/javac", "main.java"), COMPILE_TIME).wait()
+                runCmd(arrayOf("/usr/bin/javac", "main.java"), tl=COMPILE_TIME, mem=COMPILE_MEM).wait()
             }
             Language.Cpp -> {
                 runCmd(("/usr/bin/g++ main.cpp -std=c++17 -O2 -Wall -Wextra" +
                         " -Wfloat-equal -Wduplicated-cond -Wlogical-op -o main")
-                    .split(" ").toTypedArray(), COMPILE_TIME).wait()
+                    .split(" ").toTypedArray(), tl=COMPILE_TIME, mem=COMPILE_MEM).wait()
             }
             else -> ProcResult("", "", 0)
         }
@@ -207,7 +208,7 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
                     Language.Cpp -> arrayOf("./main")
                     Language.Python -> arrayOf("/usr/bin/python3", "main.py")
                     Language.JS -> arrayOf("/usr/bin/node", "main.js")
-                }, ROUND_TL)
+                }, ROUND_TL, mem=MEM_LIMIT)
 
                 curProc!!
             }
