@@ -222,6 +222,8 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: Htt
             ) { stat ->
                 var x = prob.pts - cfg.subPenalty * stat.numSub
                 x -= cfg.timePenalty * (stat.time.toEpochMilli() - cfg.startTime.toEpochMilli()).toDouble() / (1000.0 * 60)
+                x = max(x, 0.0);
+                
                 if (stat.fastest) x += cfg.fastestBonus
                 x += max(0.0, cfg.orderBonus - cfg.orderDecay * stat.order)
                 x
