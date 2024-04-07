@@ -512,8 +512,8 @@ class DB(dir: String, env: Environment) {
         val (pstat,didAC) = TeamProblem.select(TeamProblem.stat, TeamProblem.cfIdAC).where {
             (TeamProblem.team eq team[User.team]) and (TeamProblem.problem eq problem)
         }.singleOrNull()?.let {
-            it[TeamProblem.stat] to (it[TeamProblem.cfIdAC]!=null)
-        } ?: (null to false)
+            it[TeamProblem.stat] to it[TeamProblem.cfIdAC]
+        } ?: (null to null)
 
         val fastest = TeamProblem
             .join(Team, JoinType.LEFT)
@@ -552,7 +552,7 @@ class DB(dir: String, env: Environment) {
         }
 
         val numSub = pstat?.let {
-            it.numSub + (if (!didAC && !fullSolve) 1 else 0)
+            it.numSub + (if (didAC==null && !fullSolve) 1 else 0)
         } ?: (if (fullSolve) 0 else 1)
 
         val stat = SubmissionStat(isFastest, order, numSub,
@@ -564,7 +564,7 @@ class DB(dir: String, env: Environment) {
             it[TeamProblem.team] = team[User.team]
             it[TeamProblem.problem] = problem
             //...
-            it[cfIdAC]=if (fullSolve) cfId else null
+            it[cfIdAC]=didAC ?: (if (fullSolve) cfId else null)
             it[TeamProblem.runningTime]=runningTime
             it[TeamProblem.pts]=pts
             it[TeamProblem.stat]=stat
