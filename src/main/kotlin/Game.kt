@@ -177,11 +177,11 @@ class Team(val lang: Language, val code: String, val id: Int, val path: String,
         }
 
     suspend fun compile() {
-        File("$path/main.${Language.ext[lang]}").writeText(code)
+        File("$path/${if (lang==Language.Java) "Main" else "main"}.${Language.ext[lang]}").writeText(code)
 
         val compileOut = when (lang) {
             Language.Java -> {
-                runCmd(arrayOf("/usr/bin/javac", "main.java"), tl=COMPILE_TIME, mem=COMPILE_MEM).wait()
+                runCmd(arrayOf("/usr/bin/javac", "Main.java"), tl=COMPILE_TIME, mem=COMPILE_MEM).wait()
             }
             Language.Cpp -> {
                 runCmd(("/usr/bin/g++ main.cpp -std=c++17 -O2 -Wall -Wextra" +
