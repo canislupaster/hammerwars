@@ -17,6 +17,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Instant
 import kotlin.math.max
+import kotlin.math.min
 
 const val SCOREBOARD_UPDATE_INTERVAL = 10L //s
 const val SCOREBOARD_UPDATE_COUNT = 50
@@ -27,7 +28,7 @@ data class ProblemConfig(val pts: Double)
 data class ScoreboardConfig(val contestId: String, val problems: Map<String, ProblemConfig>,
                             val orderBonus: Double, val orderDecay: Double, val fastestBonus: Double,
                             val timePenalty: Double, val subPenalty: Double,
-                            val gameProblemId: String, val gamePts: Double,
+                            val gameProblemId: String, val gamePts: Double, val gameMaxPts: Double,
                             @Serializable(with=InstantSerializer::class)
                             val startTime: Instant,
                             @Serializable(with=InstantSerializer::class)
@@ -173,7 +174,7 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: Htt
 
         game.teams.map { (id,gt) ->
             SubmissionData(id, db.getTeamName(id), cfg.gameProblemId,
-                if (gt.pts==0) 0.0 else cfg.gamePts*gt.pts.toDouble()/avg,
+                if (gt.pts==0) 0.0 else min(cfg.gameMaxPts, cfg.gamePts*gt.pts.toDouble()/avg),
                 true,
                 SubmissionStat(false, 0, 0, game.lastUpdate))
         }
