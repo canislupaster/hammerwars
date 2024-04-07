@@ -524,7 +524,8 @@ class DB(dir: String, env: Environment) {
             }.singleOrNull()
 
         val prevFastest = fastest?.getOrNull(TeamProblem.team)?.let { teamId ->
-            if (runningTime < fastest[TeamProblem.runningTime.min()]!!) {
+            val x: Int = fastest[TeamProblem.runningTime.min()]!!
+            if (runningTime < x) {
                 val newStat = fastest[TeamProblem.stat].let {
                     SubmissionStat(false, it.order, it.numSub, it.time)
                 }
