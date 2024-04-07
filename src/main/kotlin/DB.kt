@@ -548,7 +548,7 @@ class DB(dir: String, env: Environment) {
         val order = TeamProblem.select(TeamProblem.team).where {
             (TeamProblem.cfIdAC less cfId) and (TeamProblem.problem eq problem)
         }.count().toInt().let { x->
-            pstat?.order?.let { y->minOf(x,y) } ?: x
+            if (didAC!=null) pstat?.order ?: x else x
         }
 
         val numSub = pstat?.let {
