@@ -198,11 +198,11 @@ class Scoreboard(val db: DB, val game: Game, val env: Environment, val http: Htt
     suspend fun update(cfg: ScoreboardConfig, batched: Boolean, unfreeze: Boolean=false): Flow<SubmissionData> = flow {
         req(cfg.contestId, batched).map {
             it to Instant.ofEpochSecond(it.creationTimeSeconds)
-        }.takeWhile { (sub,time)->
-            sub.verdict=="TESTING" || db.checkSubmission(sub.id, time)
-        }.filterNot {
-            it.first.verdict=="TESTING"
-        }.toList().reversed().forEach { (sub,time)->
+        }.takeWhile { (sub,time)-> db.checkSubmission(sub.id, time) }
+        .toList().reversed().takeWhile { it.first.verdict !in setOf("TESTING", null) }
+        .forEach { (sub,time) ->
+            db.markSubmission(sub.id, time)
+
             val prob = cfg.problems[sub.problem.index]
             if (prob==null) {
                 log.error("${sub.problem.index} not configured")

@@ -490,11 +490,15 @@ class DB(dir: String, env: Environment) {
         Team.select(Team.name).where { Team.id eq id }.single()[Team.name]
     }
 
-    suspend fun checkSubmission(cfId: Int, time: Instant) = query {
+    suspend fun markSubmission(cfId: Int, time: Instant) = query {
         Submission.insertIgnore {
             it[Submission.cfId] = cfId
             it[Submission.time] = time
-        }.insertedCount>0
+        }
+    }
+
+    suspend fun checkSubmission(cfId: Int, time: Instant) = query {
+        Submission.select(Submission.cfId).where { Submission.cfId eq cfId }.empty()
     }
 
     suspend fun makeSubmission(cfId: Int, cfHandle: String, problem: String,
