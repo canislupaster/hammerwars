@@ -525,7 +525,7 @@ class DB(dir: String, env: Environment) {
 
         val prevFastest = fastest?.getOrNull(TeamProblem.team)?.let { teamId ->
             val x: Int = fastest[TeamProblem.runningTime.min()]!!
-            if (runningTime < x && fullSolve) {
+                if (runningTime < x && fullSolve) {
                 val newStat = fastest[TeamProblem.stat].let {
                     SubmissionStat(false, it.order, it.numSub, it.time)
                 }
@@ -556,7 +556,7 @@ class DB(dir: String, env: Environment) {
         } ?: (if (fullSolve) 0 else 1)
 
         val stat = SubmissionStat(isFastest, order, numSub,
-            pstat?.time?.let {minOf(it,time)} ?: time)
+            if (didAC!=null) pstat?.time ?: time else time)
 
         val pts = if (fullSolve) score(stat) else 0.0
 
