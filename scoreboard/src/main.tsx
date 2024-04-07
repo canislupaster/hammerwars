@@ -367,8 +367,11 @@ function Scoreboard({teams: curTeams,init,events}: {teams: Record<number, Team>,
 			width: "100vw", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: -1
 		}} fs={fragShader} uniforms={{
 			evTime: {type: "1f", value: (eventStart-loadTime)/1000.0},
-			seed: {type: "1f", value: (loadTime/1000.0)%5000.0}
-		}} ></ShadertoyReact>
+			seed: {type: "1f", value: (loadTime/1000.0)%5000.0},
+			ducks: {type: "1i", value: untilFreeze==null ? 1 : 0}
+		}} textures={[
+			{url: "/duck.png"}
+		]} ></ShadertoyReact>
 
 	<div id="teamcontainer" ><table className="teams" >
 			<thead>

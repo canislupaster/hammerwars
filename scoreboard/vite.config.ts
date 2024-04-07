@@ -13,7 +13,8 @@ export default defineConfig({
       },
       "/main.css": "http://localhost:8080",
       "/favicon.png": "http://localhost:8080",
-      "/scoreboard.svg": "http://localhost:8080"
+      "/scoreboard.svg": "http://localhost:8080",
+      "/duck.png": "http://localhost:8080"
     }
   }
 })

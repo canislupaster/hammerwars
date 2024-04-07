@@ -33,6 +33,37 @@ vec3 hsv2rgb(vec3 c) {
 
 const float RES = 900.0;
 
+const vec2 imgSize = vec2(300,300);
+
+bool draw(float t, vec2 sub, vec2 uv, vec2 vel, float mul, inout vec4 fragColor) {
+    t+=70.0;
+    vec2 cp = mod(vel*t, 2.0*sub);
+    
+    if (cp.x > sub.x) cp.x = 2.0*sub.x - cp.x;
+    if (cp.y > sub.y) cp.y = 2.0*sub.y - cp.y;
+
+    cp += imgSize/2.0;
+    vec2 dif = (uv-cp)/imgSize;
+    float O = (vel.x*4.0 + vel.y*9.0)*t/iResolution.x;
+    dif *= mat2(cos(O),-sin(O),sin(O),cos(O));
+    if (length(dif)<=0.5) {
+        vec4 samp = texture(iChannel0, dif + vec2(0.5,0.5));
+        if (samp.a>0.0) {
+          fragColor = (1.0-mul)*fragColor + mul*samp;
+          return true;
+        }
+    }
+    
+    return false;
+}
+
+void draw1(float t, vec2 sub, vec2 uv, vec2 vel, inout vec4 fragColor) {
+    if(draw(t, sub, uv, vel, 1.0, fragColor)) return;
+    if(draw(t-0.3, sub, uv, vel, 0.8, fragColor)) return;
+    if(draw(t-0.5, sub, uv, vel, 0.4, fragColor)) return;
+    if(draw(t-0.7, sub, uv, vel, 0.1, fragColor)) return;
+}
+
 void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     float evSince = iTime-evTime;
     float evt = min(max(1.0-evSince,0.0) + evSince/4.0, 1.0);
@@ -74,4 +105,16 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     float lum = noise2*(0.8 + 0.5*(1.0-evt + 0.7*evt*noise(12.0*seeded))) + pow(radnoise,4.0) + (2.0-evt)*noise(uv*vec2(4.0,27.0) + vec2(132,110.0+3.0*d))/xd;
     
 		fragColor = vec4(hsv2rgb(vec3(0.5-0.5*evt + (ang-rot_ang)/(2.0*PI)/10.0-0.07, 1.0-lum*lum*lum, lum)),1.0);
+
+    if (ducks>0) {
+      vec2 sub = iResolution.xy - imgSize;
+      
+      vec2 vel1 = vec2(3.0,-3.7)/20.0 * iResolution.xy;
+      vec2 vel2 = vec2(-5.0,1.7)/20.0 * iResolution.xy;
+      vec2 vel3 = vec2(0.9,2.7)/20.0 * iResolution.xy;
+      
+      draw1(iTime, sub, fragCoord, vel1, fragColor);
+      draw1(iTime, sub, fragCoord, vel2, fragColor);
+      draw1(iTime, sub, fragCoord, vel3, fragColor);
+    }
 }
