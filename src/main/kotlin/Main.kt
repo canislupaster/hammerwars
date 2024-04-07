@@ -49,9 +49,6 @@ suspend fun main(args: Array<String>) = coroutineScope {
         else -> WebError(WebErrorType.Other, ex.message)
     }
 
-    val game = Game()
-    launch { game.start() }
-
     val gameListeners = mutableSetOf<WebSocket>()
     val scoreboardListeners = mutableSetOf<WebSocket>()
     val listenersLock = Mutex()
@@ -77,6 +74,8 @@ suspend fun main(args: Array<String>) = coroutineScope {
         install(jte)
 
         val db = DB(dir, environment)
+
+        val game = Game(db, isDev, isolateArgs, log)
 
         val scoreboard = Scoreboard(db, game, environment, httpClient, log)
 
@@ -132,9 +131,9 @@ suspend fun main(args: Array<String>) = coroutineScope {
         mountDir("src/main/static")
 
         coroutine {
-            launch {
-                scoreboard.start(this)
-            }
+            launch { game.start() }
+
+            launch { scoreboard.start(this) }
 
             launch {
                 game.flow.collect {
@@ -179,7 +178,6 @@ suspend fun main(args: Array<String>) = coroutineScope {
                         listenersLock.withLock { listeners.remove(ws) }
                     }
                 }
-
             }
 
             get("/") {
@@ -353,7 +351,7 @@ suspend fun main(args: Array<String>) = coroutineScope {
                         ?: WebErrorType.BadRequest.err("Invalid language")
                     val code = ctx.form("code").value()
 
-                    val newt = game.addTeam(t, lang,code,isDev,isolateArgs)
+                    val newt = game.addTeam(t, lang,code)
                     renderGame(newt, t)
                 }
 

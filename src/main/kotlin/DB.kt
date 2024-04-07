@@ -5,7 +5,6 @@ import io.jooby.StatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -277,7 +276,7 @@ class DB(dir: String, env: Environment) {
 
     init {
         transaction(db) {
-            SchemaUtils.createMissingTablesAndColumns(User,Session,Props,Submission,TeamProblem)
+            SchemaUtils.createMissingTablesAndColumns(User,Session,Props,Submission,TeamProblem,GameSubmission)
         }
     }
 
@@ -340,6 +339,14 @@ class DB(dir: String, env: Environment) {
         override val primaryKey = PrimaryKey(cfId)
     }
 
+    object GameSubmission: Table(name="game_submission") {
+        val team: Column<Int> = integer("team").references(Team.id, onDelete=ReferenceOption.CASCADE)
+        val language: Column<String> = text("language")
+        val code: Column<String> = text("code")
+
+        override val primaryKey = PrimaryKey(team)
+    }
+
     object TeamProblem: Table(name="team_problem") {
         val problem: Column<String> = text("problem")
         val team: Column<Int> = integer("team").references(Team.id, onDelete=ReferenceOption.CASCADE)
@@ -364,6 +371,26 @@ class DB(dir: String, env: Environment) {
             update(data.toByteArray())
             digest()
         }
+
+    data class GameSubmissionData(val team: Int, val lang: String, val code: String)
+
+    suspend fun getGameSubmissions(): List<GameSubmissionData> = query {
+        GameSubmission.selectAll().map {
+            GameSubmissionData(it[GameSubmission.team], it[GameSubmission.language], it[GameSubmission.code])
+        }.toList()
+    }
+
+    suspend fun updGameSubmission(team: Int, language: String, code: String) = query {
+        GameSubmission.upsert(GameSubmission.team) {
+            it[GameSubmission.team] = team
+            it[GameSubmission.language] = language
+            it[GameSubmission.code] = code
+        }
+    }
+
+    suspend fun removeGameSubmission(team: Int) = query {
+        GameSubmission.deleteWhere { GameSubmission.team eq team }
+    }
 
     data class MakeSession(val id: String, val key: String, val state: String)
 

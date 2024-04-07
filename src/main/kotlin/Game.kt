@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import org.slf4j.Logger
 import java.io.*
 import java.nio.file.Files
 import java.time.Instant
@@ -251,7 +252,7 @@ data object RunGame: GameMessage
 
 data class Proposal(val from: Int, val to: Int, val a: Int, val b: Int)
 
-class Game {
+class Game(val db: DB, val isDev: Boolean, val isolateArgs: List<String>, val log: Logger) {
     val teams = mutableMapOf<Int, GameTeam>()
     var running = false
     var curRound: Int? = null
@@ -265,7 +266,7 @@ class Game {
 
     suspend fun Team.interact1(pts: Map<Int, Int>): List<Proposal>? = pts.entries.let { ents ->
         interact("1 ${pts.size}\n${
-            ents.joinToString("\n", postfix="\n") { (a,b) -> "$a $b" }
+            ents.joinToString("\n") { (a,b) -> "$a $b" }
         }") {
             runCatching {
                 val lines = it.split("\n")
@@ -286,7 +287,7 @@ class Game {
 
     suspend fun Team.interact2(proposals: List<Proposal>): Proposal? =
         interact("2 ${proposals.size}\n${
-            proposals.joinToString("\n", postfix="\n") { "${it.from} ${it.a} ${it.b}" }
+            proposals.joinToString("\n") { "${it.from} ${it.a} ${it.b}" }
         }") {
             val idx = it.toIntOrNull()
                 ?: throw verdict(Verdict.INT, "Accepted proposal not an integer")
@@ -297,7 +298,7 @@ class Game {
             }
         }
 
-    suspend fun addTeam(id: Int, lang: Language, code: String, isDev: Boolean, isolateArgs: List<String>): Team {
+    suspend fun addTeam(id: Int, lang: Language, code: String): Team {
         if (code.length > SIZE_LIMIT)
             WebErrorType.BadRequest.err("Code too long")
 
@@ -305,7 +306,6 @@ class Game {
         t.compile()
 
         val ids = (1..100).map { Random.nextInt(0, 1000) }.distinct()
-
         //test interaction
         t.interact1(ids.associateWith { Random.nextInt(0,1000) })
 
@@ -366,8 +366,21 @@ class Game {
     }
 
     suspend fun start() = coroutineScope {
+        for (sub in db.getGameSubmissions()) {
+            val l = Language.fromExt[sub.lang]
+            if (l==null) {
+                log.error("Unknown language ${sub.lang}")
+                continue
+            }
+
+            log.info("Adding team ${sub.team} to game")
+            runCatching { addTeam(sub.team, l, sub.code) }.onFailure {
+                log.error("Failed to add team", it)
+            }
+        }
+
         Runtime.getRuntime().addShutdownHook(Thread {
-            println("Cleaning up isolate boxes")
+            log.info("Cleaning up isolate boxes")
 
             runBlocking {
                 lock.withLock {
@@ -381,12 +394,18 @@ class Game {
         while (isActive) {
             when (val msg = changes.receive()) {
                 is AddTeam -> {
+                    db.updGameSubmission(msg.t.id, Language.ext[msg.t.lang]!!, msg.t.code)
+
                     lock.withLock {
                         up()
                         teams.put(msg.t.id, GameTeam(msg.t, 0))
-                    }?.t?.cleanup()
+                    }?.t?.let {
+                        it.lock.withLock {it.stop()}
+                    }
                 }
                 is RemoveTeam -> {
+                    db.removeGameSubmission(msg.id)
+
                     lock.withLock { teams.remove(msg.id) }?.t?.cleanup()
                     up()
                 }
