@@ -47,7 +47,7 @@
                     <li>If $t=2$, then the accepting phase has begun. The $i$th of the following $n$ lines contains a proposal $id_i\ X\ Y$ (you gain $Y$ while team $id_i$ gains $X$). You must output one of the $id_i$, denoting which team's proposal you accept.</li>
                 </ul>
 
-                <p>After each turn, please output an extra blank line.</p>
+                <p>Each turn will be terminated by a blank line. After your turn, please output an extra blank line.</p>
 
                 <b>Note that as programs crash, the numbering may change, but the identifiers $id_i$ will remain stable. Ask us for any clarifications!</b>
             </p>

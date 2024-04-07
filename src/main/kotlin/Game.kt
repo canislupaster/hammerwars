@@ -266,7 +266,7 @@ class Game(val db: DB, val isDev: Boolean, val isolateArgs: List<String>, val lo
 
     suspend fun Team.interact1(pts: Map<Int, Int>): List<Proposal>? = pts.entries.let { ents ->
         interact("1 ${pts.size}\n${
-            ents.joinToString("\n") { (a,b) -> "$a $b" }
+            ents.joinToString("\n", postfix="\n") { (a,b) -> "$a $b" }
         }") {
             runCatching {
                 val lines = it.split("\n")
@@ -287,7 +287,7 @@ class Game(val db: DB, val isDev: Boolean, val isolateArgs: List<String>, val lo
 
     suspend fun Team.interact2(proposals: List<Proposal>): Proposal? =
         interact("2 ${proposals.size}\n${
-            proposals.joinToString("\n") { "${it.from} ${it.a} ${it.b}" }
+            proposals.joinToString("\n", postfix="\n") { "${it.from} ${it.a} ${it.b}" }
         }") {
             val idx = it.toIntOrNull()
                 ?: throw verdict(Verdict.INT, "Accepted proposal not an integer")
